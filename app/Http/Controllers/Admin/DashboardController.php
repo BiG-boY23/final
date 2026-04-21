@@ -23,18 +23,26 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $from = $request->query('from') ? Carbon::parse($request->from)->startOfDay() : Carbon::today()->startOfDay();
+        $to = $request->query('to') ? Carbon::parse($request->to)->endOfDay() : Carbon::today()->endOfDay();
+        
+        $isFiltered = $request->has('from') && $request->has('to');
+
         // Get real statistics from database
         $stats = [
             'total_rfid' => VehicleRegistration::count(),
             'active_rfid' => Vehicle::count(),
             'blacklisted_rfid' => VehicleRegistration::where('status', 'rejected')->count(),
             'pending_registrations' => VehicleRegistration::where('status', 'pending')->count(),
-            'entries_today' => VehicleLog::where('type', 'entry')->whereDate('timestamp', Carbon::today())->count(),
-            'exits_today' => VehicleLog::where('type', 'exit')->whereDate('timestamp', Carbon::today())->count(),
+            'entries_today' => VehicleLog::where('type', 'entry')->whereBetween('timestamp', [$from, $to])->count(),
+            'exits_today' => VehicleLog::where('type', 'exit')->whereBetween('timestamp', [$from, $to])->count(),
             'current_occupancy' => VehicleLog::dailyOccupancy(),
             'total_capacity' => (int)SystemSetting::get('total_parking_slots', 200),
+            'is_filtered' => $isFiltered,
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d')
         ];
 
         // Get recent registrations for activity logs (load latest review + admin)
@@ -85,6 +93,7 @@ class DashboardController extends Controller
         ]);
 
         User::create([
+            'name' => trim($request->first_name . ' ' . $request->last_name),
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'middle_name' => $request->middle_name,
@@ -113,6 +122,7 @@ class DashboardController extends Controller
         ]);
 
         $data = [
+            'name' => trim($request->first_name . ' ' . $request->last_name),
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'middle_name' => $request->middle_name,
@@ -164,7 +174,10 @@ class DashboardController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('full_name', 'like', "%$search%")
                   ->orWhere('plate_number', 'like', "%$search%")
-                  ->orWhere('rfid_tag_id', 'like', "%$search%");
+                  ->orWhere('rfid_tag_id', 'like', "%$search%")
+                  ->orWhereHas('vehicles', function($v) use ($search) {
+                      $v->where('plate_number', 'like', "%$search%");
+                  });
             });
         }
 
@@ -206,14 +219,15 @@ class DashboardController extends Controller
             'first_name' => 'required|string|max:100',
             'last_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
-            'contact_number' => 'required|string|max:20',
+            'contact_number' => $request->role === 'faculty' ? 'nullable|string|max:20' : 'required|string|max:20',
             'email_address' => 'nullable|email|max:255',
+            'university_id' => $request->role === 'faculty' ? 'nullable|string|max:255' : ($request->role === 'student' ? 'required|string|max:255' : 'nullable'),
             'vehicle_type' => 'required|string|max:100', 
             'make_brand' => 'required|string|max:255',
             'model_name' => 'required|string|max:255',
             'plate_number' => 'required|string|max:20',
-            'validity_from' => 'required|date',
-            'validity_to' => 'required|date',
+            'validity_from' => 'nullable|date',
+            'validity_to' => 'nullable|date',
             'rfid_tag_id' => 'required|string|unique:vehicle_registrations,rfid_tag_id',
         ]);
 
@@ -232,28 +246,29 @@ class DashboardController extends Controller
 
         $fullName = trim($request->first_name . ' ' . ($request->middle_name ? $request->middle_name . ' ' : '') . $request->last_name);
         
-        $data = [
-            'role'              => $request->role,
-            'first_name'        => $request->first_name,
-            'last_name'         => $request->last_name,
-            'middle_name'       => $request->middle_name,
-            'full_name'         => $fullName,
-            'contact_number'    => $request->contact_number,
-            'email_address'     => $request->email_address ?? 'N/A',
-            'vehicle_type'      => $request->vehicle_type,
-            'make_brand'        => $request->make_brand,
-            'model_name'        => $request->model_name,
-            'model_year'        => $request->model_year ?? 'N/A',
-            'color'             => $request->color ?? 'N/A',
-            'plate_number'      => $request->plate_number,
-            'registered_owner'  => $request->registered_owner ?? $fullName,
-            'validity_from'     => $request->validity_from,
-            'validity_to'       => $request->validity_to,
-            'rfid_tag_id'       => $request->rfid_tag_id,
-            'status'            => 'approved',
-            'office_user_id'    => Auth::id(),
-            'sticker_classification' => [$request->role],
-        ];
+            $vPeriod = (int)SystemSetting::get('validity_period', 1);
+            $data = [
+                'role'              => $request->role,
+                'first_name'        => $request->first_name,
+                'last_name'         => $request->last_name,
+                'middle_name'       => $request->middle_name,
+                'full_name'         => $fullName,
+                'contact_number'    => $request->contact_number,
+                'email_address'     => $request->email_address ?? 'N/A',
+                'vehicle_type'      => $request->vehicle_type,
+                'make_brand'        => $request->make_brand,
+                'model_name'        => $request->model_name,
+                'model_year'        => $request->model_year ?? 'N/A',
+                'color'             => $request->color ?? 'N/A',
+                'plate_number'      => $request->plate_number,
+                'registered_owner'  => $request->registered_owner ?? $fullName,
+                'validity_from'     => $request->validity_from ?: now()->toDateString(),
+                'validity_to'       => $request->validity_to ?: now()->addYears($vPeriod)->toDateString(),
+                'rfid_tag_id'       => $request->rfid_tag_id,
+                'status'            => 'approved',
+                'office_user_id'    => Auth::id(),
+                'sticker_classification' => [$request->role],
+            ];
 
         // Role-based specific mappings
         if ($request->role === 'student') {
@@ -315,14 +330,15 @@ class DashboardController extends Controller
             'first_name' => 'nullable|string|max:100',
             'last_name' => 'nullable|string|max:100',
             'middle_name' => 'nullable|string|max:100',
-            'contact_number' => 'required|string|max:20',
+            'contact_number' => $request->role === 'faculty' ? 'nullable|string|max:20' : 'required|string|max:20',
             'email_address' => 'nullable|email|max:255',
+            'university_id' => 'nullable|string|max:255',
             'vehicle_type' => 'required|string|max:100', 
             'make_brand' => 'required|string|max:255',
             'model_name' => 'nullable|string|max:255',
             'plate_number' => 'required|string|max:20',
-            'validity_from' => 'required|date',
-            'validity_to' => 'required|date',
+            'validity_from' => 'nullable|date',
+            'validity_to' => 'nullable|date',
             'rfid_tag_id' => 'required|string|unique:vehicle_registrations,rfid_tag_id,' . $registration->id,
         ]);
 
@@ -345,6 +361,7 @@ class DashboardController extends Controller
             $fullName = preg_replace('/\s+/', ' ', $fullName);
         }
         
+        $vPeriod = (int)SystemSetting::get('validity_period', 1);
         $data = [
             'role'              => $request->role,
             'first_name'        => $request->first_name,
@@ -357,8 +374,8 @@ class DashboardController extends Controller
             'make_brand'        => $request->make_brand,
             'model_name'        => $request->model_name,
             'plate_number'      => $request->plate_number,
-            'validity_from'     => $request->validity_from,
-            'validity_to'       => $request->validity_to,
+            'validity_from'     => $request->validity_from ?: now()->toDateString(),
+            'validity_to'       => $request->validity_to ?: now()->addYears($vPeriod)->toDateString(),
             'rfid_tag_id'       => $request->rfid_tag_id,
         ];
 
@@ -412,6 +429,25 @@ class DashboardController extends Controller
             'status' => $newStatus
         ]);
 
+        // Log the review
+        \App\Models\RegistrationReview::create([
+            'vehicle_registration_id' => $registration->id,
+            'admin_id' => Auth::id(),
+            'action' => $newStatus,
+            'admin_notes' => 'Status manually toggled by Admin via RFID management.',
+            'reviewed_at' => now(),
+        ]);
+
+        // Send Email if approved
+        if ($newStatus === 'approved' && $registration->email_address && filter_var($registration->email_address, FILTER_VALIDATE_EMAIL)) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($registration->email_address)
+                    ->send(new \App\Mail\RegistrationVerified($registration));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Failed to send activation email to {$registration->email_address}: " . $e->getMessage());
+            }
+        }
+
         $this->recordActivity('TAG_STATUS_CHANGE', ($newStatus === 'approved' ? 'Activated' : 'Blacklisted') . " tag ID: {$registration->rfid_tag_id} for {$registration->full_name}");
 
         return response()->json([
@@ -427,26 +463,50 @@ class DashboardController extends Controller
         return response()->json($registration);
     }
 
-    /**
-     * Fetch user record by university_id for auto-population.
-     */
-    public function fetchUserByUnivId($univId)
+    public function fetchUserByUnivId($searchValue)
     {
-        $registration = VehicleRegistration::where('university_id', $univId)
+        // 1. Try to find by University ID
+        $registration = VehicleRegistration::with('vehicles')
+            ->where('university_id', $searchValue)
             ->latest()
             ->first();
 
-        if ($registration) {
-            return response()->json([
-                'success' => true,
-                'data' => $registration
-            ]);
+        // 2. If not found, try to find by Plate Number
+        if (!$registration) {
+            $vehicle = \App\Models\Vehicle::where('plate_number', $searchValue)->first();
+            if ($vehicle) {
+                $registration = VehicleRegistration::with('vehicles')
+                    ->where('id', $vehicle->user_id)
+                    ->latest()
+                    ->first();
+            }
         }
 
+        if (!$registration) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No prior registration found for this ID or Plate Number.'
+            ], 404);
+        }
+
+        // Fetch all vehicles across all registration instances for this Identity
+        $allVehicles = collect();
+        if ($registration->university_id && $registration->university_id !== 'N/A') {
+            $allRegIds = VehicleRegistration::where('university_id', $registration->university_id)->pluck('id');
+            $allVehicles = \App\Models\Vehicle::whereIn('user_id', $allRegIds)->get();
+        } else {
+            $allRegIds = VehicleRegistration::where('full_name', $registration->full_name)
+                ->where('contact_number', $registration->contact_number)
+                ->pluck('id');
+            $allVehicles = \App\Models\Vehicle::whereIn('user_id', $allRegIds)->get();
+        }
+
+        $registration->setRelation('vehicles', $allVehicles);
+
         return response()->json([
-            'success' => false,
-            'message' => 'No prior registration found for this ID.'
-        ], 404);
+            'success' => true,
+            'data'    => $registration,
+        ]);
     }
 
     public function reports(Request $request)
@@ -462,9 +522,12 @@ class DashboardController extends Controller
             $search = $request->get('search');
             $query->where(function($q) use ($search) {
                 $q->whereHas('vehicleRegistration', function($qr) use ($search) {
-                    $qr->where('full_name', 'like', "%$search%");
+                    $qr->where('full_name', 'like', "%$search%")
+                      ->orWhere('university_id', 'like', "%$search%")
+                      ->orWhere('plate_number', 'like', "%$search%");
                 })->orWhereHas('vehicle', function($qv) use ($search) {
-                    $qv->where('plate_number', 'like', "%$search%");
+                    $qv->where('plate_number', 'like', "%$search%")
+                      ->orWhere('rfid_tag', 'like', "%$search%");
                 });
             });
         }
@@ -599,8 +662,8 @@ class DashboardController extends Controller
     {
         $port = $request->input('port', 'Unknown');
         
-        Cache::put('bridge_last_heartbeat', now(), 120); // 2 min expiry
-        Cache::put('bridge_com_port', $port, 120);
+        Cache::put('bridge_last_heartbeat', now(), 45); // 45 sec expiry 
+        Cache::put('bridge_com_port', $port, 45);
 
         return response()->json(['status' => 'success']);
     }
@@ -654,11 +717,18 @@ class DashboardController extends Controller
 
     public function bridgeStatus()
     {
-        $connection = @fsockopen('127.0.0.1', 8080, $errno, $errstr, 1);
-        if ($connection) {
-            fclose($connection);
-            return response()->json(['online' => true]);
+        // NO MORE SOCKET PROBING: Check Cache populated by heartbeat
+        $lastHeartbeat = Cache::get('bridge_last_heartbeat');
+        if ($lastHeartbeat) {
+            return response()->json([
+                'online' => true,
+                'last_seen' => Carbon::parse($lastHeartbeat)->diffForHumans(),
+                'port' => Cache::get('bridge_com_port', 'Unknown')
+            ]);
         }
+        
+        // Fallback check (less frequent or only if needed)
+        // For now, if no heartbeat, it's offline.
         return response()->json(['online' => false]);
     }
 

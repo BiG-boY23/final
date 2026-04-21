@@ -9,7 +9,7 @@ return [
     'total_exits' => 'TOTAL EXITS TODAY',
     'active_users' => 'ACTIVE USERS',
     'recent_activity' => 'Recent Vehicle Activity',
-    'manual_entry' => 'Manual Entry',
+    'manual_entry' => 'Visitor Entry',
     'visitor_entry' => 'Visitor Entry',
     'visitor_exit' => 'Visitor Exit',
     'reports' => 'Reports',

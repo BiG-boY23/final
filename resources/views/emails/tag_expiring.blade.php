@@ -28,10 +28,10 @@
             <table width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                     <td align="left">
-                        <img src="{{ url('images/evsu-logo.png') }}" alt="EVSU Logo" class="logo">
+                        <img src="{{ $message->embed(public_path('images/evsu-logo.png')) }}" alt="EVSU Logo" class="logo">
                     </td>
                     <td align="right">
-                        <img src="{{ url('images/chocobol-logo.png') }}" alt="Chocobol Logo" class="logo">
+                        <img src="{{ $message->embed(public_path('images/chocobol-logo.png')) }}" alt="Chocobol Logo" class="logo">
                     </td>
                 </tr>
             </table>

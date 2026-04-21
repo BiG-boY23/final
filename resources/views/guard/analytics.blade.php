@@ -13,6 +13,17 @@
             <a href="?range=today" class="filter-btn {{ $currentRange === 'today' ? 'active' : '' }}">Today</a>
             <a href="?range=7d" class="filter-btn {{ $currentRange === '7d' ? 'active' : '' }}">Last 7 Days</a>
         </div>
+
+        <form action="{{ url()->current() }}" method="GET" class="custom-range-filter no-print">
+            <div class="date-input-group">
+                <input type="date" name="from" value="{{ $fromDate ?? date('Y-m-d') }}" class="range-input">
+                <span class="divider">to</span>
+                <input type="date" name="to" value="{{ $toDate ?? date('Y-m-d') }}" class="range-input">
+                <button type="submit" class="range-submit">
+                    <i class="ph ph-funnel"></i>
+                </button>
+            </div>
+        </form>
         
         <div class="header-actions">
             <div id="syncIndicator" class="sync-status">
@@ -148,6 +159,15 @@
     .filter-btn:hover { background: #f1f5f9; color: #1e293b; }
     .filter-btn.active { background: #741b1b; color: white; border-color: #741b1b; }
 
+    .custom-range-filter { display: flex; align-items: center; }
+    .date-input-group { display: flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 4px; gap: 8px; }
+    .range-input { border: none; background: transparent; font-size: 0.8rem; font-weight: 700; color: #1e293b; padding: 0.4rem 0.6rem; outline: none; }
+    .divider { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
+    .range-submit { background: #741b1b; color: white; border: none; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+    .range-submit:hover { background: #450a0a; transform: scale(1.05); }
+    [data-theme='dark'] .date-input-group { background: #0f172a; border-color: #334155; }
+    [data-theme='dark'] .range-input { color: #f8fafc; }
+
     .sync-status { display: inline-flex; align-items: center; gap: 8px; font-size: 0.75rem; font-weight: 800; color: #10b981; margin-right: 1.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
     .sync-status i { animation: spin 4s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -229,7 +249,10 @@
         exitGradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
 
         function initChart(labels, entryData, exitData) {
-            trafficChart = new Chart(ctx, {
+            if (!ctx) return;
+            try {
+                console.log("Analytics Data Loaded:", { labels, entryData, exitData });
+                trafficChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
@@ -241,8 +264,9 @@
                             backgroundColor: entryGradient,
                             fill: true,
                             tension: 0.4,
-                            borderWidth: 3,
-                            pointRadius: 4,
+                            borderWidth: 4,
+                            pointRadius: 5,
+                            pointHoverRadius: 8,
                             pointBackgroundColor: 'white'
                         },
                         {
@@ -252,8 +276,9 @@
                             backgroundColor: exitGradient,
                             fill: true,
                             tension: 0.4,
-                            borderWidth: 3,
-                            pointRadius: 4,
+                            borderWidth: 4,
+                            pointRadius: 5,
+                            pointHoverRadius: 8,
                             pointBackgroundColor: 'white'
                         }
                     ]
@@ -271,6 +296,9 @@
                     }
                 }
             });
+            } catch (e) {
+                console.error("Traffic Chart Initialization Failed:", e);
+            }
         }
 
         // Initial Data
@@ -282,8 +310,20 @@
         // Real-time Sync (60s interval)
         async function refreshData() {
             try {
-                const range = new URLSearchParams(window.location.search).get('range') || 'today';
-                const response = await fetch(`{{ route('guard.analytics.data') }}?range=${range}`);
+                const params = new URLSearchParams(window.location.search);
+                const range = params.get('range') || 'today';
+                const from = params.get('from') || '';
+                const to = params.get('to') || '';
+
+                // Determine API endpoint based on current path
+                const isGuard = window.location.pathname.includes('/guard/');
+                let url = isGuard 
+                    ? `{{ route('guard.analytics.data') }}?range=${range}` 
+                    : `{{ route('admin.traffic-analytics.data') }}?range=${range}`;
+
+                if(from && to) url += `&from=${from}&to=${to}`;
+                
+                const response = await fetch(url);
                 const data = await response.json();
 
                 // Update Summary

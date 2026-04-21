@@ -22,7 +22,7 @@
         <div class="stats-card pie-card">
             <div class="card-title">
                 <h3><i class="ph ph-users-three" style="color: #741b1b;"></i> User Role Distribution</h3>
-                <p>Overall percentage breakdown of Students, Faculty, and Staff.</p>
+                <p>Overall percentage breakdown of Students, Personnel, and Vendors.</p>
             </div>
             <div class="chart-box" style="min-height: 300px;">
                 <canvas id="roleDistributionChart"></canvas>
@@ -40,7 +40,12 @@
                             </div>
                             @php
                                 $rolePercent = $totalOwners > 0 ? round(($stats[$r]['owners'] / $totalOwners) * 100) : 0;
-                                $roleTitle = $r === 'faculty' ? 'Faculty Analytics' : ucfirst($r) . 's Analytics';
+                                $roleDisplayNames = [
+                                    'student' => 'Student Analytics',
+                                    'faculty' => 'Personnel Analytics',
+                                    'staff' => 'Vendor Analytics'
+                                ];
+                                $roleTitle = $roleDisplayNames[$r] ?? ucfirst($r) . ' Analytics';
                             @endphp
                             <div>
                                 <h4>{{ $roleTitle }} <span style="color: #741b1b;">({{ $rolePercent }}%)</span></h4>
@@ -243,7 +248,15 @@
                     labels: labels,
                     datasets: [{
                         data: values,
-                        backgroundColor: values.map((_, i) => `hsl(${roleBaseHue}, 70%, ${50 + (i * 10)}%)`),
+                        backgroundColor: [
+                            '#3b82f6', // Blue
+                            '#ef4444', // Red
+                            '#f59e0b', // Amber
+                            '#10b981', // Emerald
+                            '#8b5cf6', // Violet
+                            '#06b6d4', // Cyan
+                            '#ec4899'  // Pink
+                        ],
                         borderWidth: 0
                     }]
                 },
@@ -271,9 +284,8 @@
                         label: 'Vehicle Categories',
                         data: pieData.inner.map(d => d.value),
                         backgroundColor: pieData.inner.map((d, i) => {
-                            if(d.label.toLowerCase().includes('student')) return `hsl(214, 80%, ${60 + (i % 3) * 5}%)`;
-                            if(d.label.toLowerCase().includes('faculty')) return `hsl(0, 70%, ${50 + (i % 3) * 5}%)`;
-                            return `hsl(142, 60%, ${45 + (i % 3) * 5}%)`;
+                            const colors = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#06b6d4', '#ec4899'];
+                            return colors[i % colors.length];
                         }),
                         weight: 0.5
                     },
@@ -297,7 +309,9 @@
                 labels: Object.keys(breakdown).map(l => l.charAt(0).toUpperCase() + l.slice(1)),
                 datasets: [{
                     data: Object.values(breakdown),
-                    backgroundColor: Object.values(breakdown).map((_, i) => `hsl(${hue}, 70%, ${50 + (i * 10)}%)`),
+                    backgroundColor: [
+                        '#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#06b6d4', '#ec4899'
+                    ],
                     borderWidth: 2,
                     borderColor: '#ffffff',
                     hoverOffset: 12

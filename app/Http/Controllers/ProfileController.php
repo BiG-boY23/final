@@ -51,20 +51,32 @@ class ProfileController extends Controller
         }
 
         // 3. User Identity updates
-        $user->first_name = $request->first_name;
-        $user->last_name  = $request->last_name;
+        $user->first_name = strip_tags($request->first_name);
+        $user->last_name  = strip_tags($request->last_name);
+        $user->name       = trim($user->first_name . ' ' . $user->last_name);
         $user->email      = $request->email;
         
         // 4. Preferences & Security settings
-        $user->dark_mode          = $request->boolean('dark_mode');
-        $user->two_factor_enabled = $request->boolean('two_factor_enabled');
-        $user->language           = $request->language;
+        $user->dark_mode          = $request->has('dark_mode') ? (bool)$request->dark_mode : $user->dark_mode;
+        $user->two_factor_enabled = $request->has('two_factor_enabled') ? (bool)$request->two_factor_enabled : $user->two_factor_enabled;
+        $user->language           = $request->language ?? $user->language;
         
         $user->save();
 
+        // 5. Sync Session Data (Used in Dashboard Sidebar/Header)
+        session([
+            'user' => $user->name,
+            'role' => $user->role
+        ]);
+
         return response()->json([
             'success' => true,
-            'message' => 'Profile Updated! Your changes have been saved.'
+            'message' => 'Profile Updated! Your changes have been successfully saved.',
+            'user'    => [
+                'full_name' => $user->name,
+                'email'     => $user->email,
+                'avatar'    => $user->profile_picture ? Storage::url($user->profile_picture) : null
+            ]
         ]);
     }
 

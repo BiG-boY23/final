@@ -16,6 +16,7 @@ class UserSeeder extends Seeder
         User::updateOrCreate(
             ['username' => 'admin'],
             [
+                'name' => 'System Admin',
                 'first_name' => 'System',
                 'last_name' => 'Admin',
                 'middle_name' => '',
@@ -28,6 +29,7 @@ class UserSeeder extends Seeder
         User::updateOrCreate(
             ['username' => 'office'],
             [
+                'name' => 'Registrar Office',
                 'first_name' => 'Registrar',
                 'last_name' => 'Office',
                 'middle_name' => '',
@@ -40,6 +42,7 @@ class UserSeeder extends Seeder
         User::updateOrCreate(
             ['username' => 'guard'],
             [
+                'name' => 'Security Guard',
                 'first_name' => 'Security',
                 'last_name' => 'Guard',
                 'middle_name' => '',

@@ -63,6 +63,7 @@
                     <th>Tag ID</th>
                     <th>Owner / Vehicle</th>
                     <th>Plate Number</th>
+                    <th>Date Registered</th>
                     <th>Registered By</th>
                     <th>Status</th>
                     <th style="text-align: right;">Security Actions</th>
@@ -85,8 +86,11 @@
                     </td>
                     <td><span class="badge-plate">{{ $reg->plate_number }}</span></td>
                     <td>
+                        <div style="font-size: 0.85rem; color: #475569; font-weight: 600;">{{ $reg->created_at->format('M d, Y') }}</div>
+                        <div style="font-size: 0.7rem; color: #94a3b8;">{{ $reg->created_at->format('h:i A') }}</div>
+                    </td>
+                    <td>
                         <div style="font-size: 0.85rem; color: #475569;">{{ $reg->officeUser->name ?? 'System' }}</div>
-                        <div style="font-size: 0.7rem; color: #94a3b8;">{{ $reg->created_at->format('M d, Y') }}</div>
                     </td>
                     <td id="status-cell-{{ $reg->id }}">
                         @if($reg->status === 'approved')
@@ -115,7 +119,7 @@
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" style="text-align: center; padding: 4rem; color: #94a3b8;">
+                    <td colspan="7" style="text-align: center; padding: 4rem; color: #94a3b8;">
                         <i class="ph ph-identification-card" style="font-size: 3rem; opacity: 0.2; display: block; margin: 0 auto 1rem;"></i>
                         No RFID registrations matched your search.
                     </td>

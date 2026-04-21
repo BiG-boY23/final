@@ -11,19 +11,22 @@ class AcademicDataController extends Controller
 {
     public function index()
     {
-        $colleges = College::withCount('courses')->orderBy('name')->get();
+        $colleges = College::where('category', 'academic')->withCount('courses')->orderBy('name')->get();
+        $offices = College::where('category', 'administrative')->orderBy('name')->get();
         $courses = Course::with('college')->orderBy('name')->get();
-        return view('admin.manage.academic', compact('colleges', 'courses'));
+        
+        return view('admin.manage.academic', compact('colleges', 'offices', 'courses'));
     }
 
     public function storeCollege(Request $request)
     {
         $request->validate([
             'name' => 'required|string|unique:colleges,name',
-            'code' => 'nullable|string'
+            'code' => 'nullable|string',
+            'category' => 'required|string|in:academic,administrative'
         ]);
         College::create($request->all());
-        return back()->with('success', 'College/Department added.');
+        return back()->with('success', ($request->category === 'academic' ? 'Department' : 'Office') . ' added successfully.');
     }
 
     public function updateCollege(Request $request, $id)
@@ -31,10 +34,11 @@ class AcademicDataController extends Controller
         $college = College::findOrFail($id);
         $request->validate([
             'name' => 'required|string|unique:colleges,name,' . $id,
-            'code' => 'nullable|string'
+            'code' => 'nullable|string',
+            'category' => 'required|string|in:academic,administrative'
         ]);
         $college->update($request->all());
-        return back()->with('success', 'College updated.');
+        return back()->with('success', ($request->category === 'academic' ? 'Department' : 'Office') . ' updated.');
     }
 
     public function destroyCollege($id)

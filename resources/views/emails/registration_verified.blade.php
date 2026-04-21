@@ -28,10 +28,10 @@
             <table width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                     <td align="left">
-                        <img src="{{ url('images/evsu-logo.png') }}" alt="EVSU Logo" class="logo">
+                        <img src="{{ $message->embed(public_path('images/evsu-logo.png')) }}" alt="EVSU Logo" class="logo">
                     </td>
                     <td align="right">
-                        <img src="{{ url('images/chocobol-logo.png') }}" alt="Chocobol Logo" class="logo">
+                        <img src="{{ $message->embed(public_path('images/chocobol-logo.png')) }}" alt="Chocobol Logo" class="logo">
                     </td>
                 </tr>
             </table>
@@ -62,7 +62,15 @@
             <p>Please visit the <strong>MESO (Maintenance and Engineering Services Office)</strong> to receive your physical RFID tag. Our staff will assist you in installing and activating the tag for your vehicle.</p>
 
             <div class="important-note">
-                <strong>REMINDER:</strong> Please bring your <strong>Original University ID</strong> and your vehicle's <strong>OR/CR</strong> for final face-to-face validation before the tag is issued.
+                @php
+                    $idLabel = match($registration->role) {
+                        'student' => 'Original University ID',
+                        'faculty' => 'Original Employee ID',
+                        'staff'   => 'Official Business ID/Permit',
+                        default   => 'Valid Physical ID',
+                    };
+                @endphp
+                <strong>REMINDER:</strong> Please bring your <strong>{{ $idLabel }}</strong> and your vehicle's <strong>OR/CR</strong> for final face-to-face validation before the tag is issued.
             </div>
         </div>
 

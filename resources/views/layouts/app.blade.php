@@ -69,6 +69,10 @@
                 overflow: visible !important;
             }
         }
+            }
+        }
+        
+
     </style>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -142,6 +146,17 @@
                         <li><a href="{{ route('admin.manage.fleet') }}" class="{{ request()->is('admin/manage/fleet*') ? 'active' : '' }}"><i class="ph ph-car-profile"></i> Manage Fleet Assets</a></li>
                         <li><a href="{{ route('admin.manage.academic') }}" class="{{ request()->is('admin/manage/academic*') ? 'active' : '' }}"><i class="ph ph-graduation-cap"></i> Academic Data</a></li>
 
+                    </ul>
+                </li>
+                <li class="nav-item dropdown">
+                    <a href="javascript:void(0)" class="dropdown-trigger {{ request()->is('admin/stats*') ? 'active' : '' }}" onclick="this.parentElement.classList.toggle('open')">
+                        <i class="ph ph-chart-pie"></i> Fleet Statistics
+                        <i class="ph ph-caret-down" style="font-size:0.7rem;"></i>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="{{ route('admin.stats.demographics') }}" class="{{ request()->routeIs('admin.stats.demographics') ? 'active' : '' }}"><i class="ph ph-users-three"></i> Vehicle Demographics</a></li>
+                        <li><a href="{{ route('admin.stats.expiry') }}" class="{{ request()->routeIs('admin.stats.expiry') ? 'active' : '' }}"><i class="ph ph-calendar-x"></i> Tag Expiry Tracking</a></li>
+                        <li><a href="{{ route('admin.stats.behavior') }}" class="{{ request()->routeIs('admin.stats.behavior') ? 'active' : '' }}"><i class="ph ph-presentation-chart"></i> Owner Behavior</a></li>
                     </ul>
                 </li>
                 {{-- Issuance & Payment Status Dropdown (Available for Admin & Office) --}}
@@ -263,6 +278,8 @@
                 <h1>@yield('title', __('messages.dashboard'))</h1>
                 <p>@yield('subtitle', __('messages.monitoring_tag'))</p>
             </div>
+            
+
 
             <div class="header-actions">
                 @if(in_array(auth()->user()->role ?? '', ['admin', 'office']))
@@ -276,15 +293,17 @@
                 {{-- User Profile / Dropdown Wrapper --}}
                 <div class="user-dropdown-wrapper" id="userDropdownWrapper" style="position: relative; overflow: visible;">
                     <button class="user-profile" id="userProfileBtn">
-                        <div class="avatar">
-                            @if(auth()->user() && auth()->user()->profile_picture)
-                                <img src="{{ asset('storage/' . auth()->user()->profile_picture) }}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">
+                        <div class="avatar" id="headerAvatarContainer" style="display:flex; align-items:center; justify-content:center; overflow:hidden; border-radius:50%; width:44px; height:44px; background:#f1f5f9; border: 1px solid #e2e8f0;">
+                            @if(auth()->check() && !empty(auth()->user()->profile_picture))
+                                <img src="{{ Storage::url(auth()->user()->profile_picture) }}?v={{ time() }}" id="headerAvatarImg" style="width:100%; height:100%; object-fit:cover;">
                             @else
-                                {{ auth()->user() ? strtoupper(substr(auth()->user()->first_name ?? 'U', 0, 1)) : 'U' }}
+                                <div id="headerAvatarPlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+                                    <i class="ph ph-user" style="font-size: 1.5rem; color: #94a3b8;"></i>
+                                </div>
                             @endif
                         </div>
                         <div class="user-info">
-                            <span class="user-name">{{ auth()->user() ? (auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'Security Guard' }}</span>
+                            <span class="user-name" id="headerUserName">{{ auth()->user() ? (auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'Security Guard' }}</span>
                         </div>
                         <i class="ph ph-caret-down dropdown-caret" id="dropdownCaret"></i>
                     </button>
@@ -295,17 +314,17 @@
                          role="menu">
                         
                         <div style="display: flex; align-items: center; gap: 1rem; padding: 1.25rem; background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                            <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #741b1b, #a52a2a); color: white; font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;">
+                            <div id="dropdownAvatarContainer" style="width: 48px; height: 48px; border-radius: 50%; background: #f1f5f9; color: #64748b; font-weight: 800; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border: 1px solid #e2e8f0;">
                                 @if(auth()->user() && auth()->user()->profile_picture)
-                                    <img src="{{ asset('storage/' . auth()->user()->profile_picture) }}" style="width:100%; height:100%; object-fit:cover;">
+                                    <img src="{{ Storage::url(auth()->user()->profile_picture) }}?t={{ time() }}" id="dropdownAvatarImg" style="width:100%; height:100%; object-fit:cover;">
                                 @else
-                                    {{ auth()->user() ? strtoupper(substr(auth()->user()->first_name ?? 'U', 0, 1)) : 'U' }}
+                                    <i class="ph ph-user" id="dropdownAvatarFallback" style="font-size: 1.5rem;"></i>
                                 @endif
                             </div>
                             <div style="flex:1; min-width: 0;">
-                                <div style="font-weight: 800; font-size: 1rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ auth()->user() ? (auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'User' }}</div>
+                                <div id="dropdownUserName" style="font-weight: 800; font-size: 1rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ auth()->user() ? (auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'User' }}</div>
                                 <div style="font-size: 0.75rem; color: #fdb913; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">{{ $role ? ucfirst($role) : 'User' }}</div>
-                                <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ auth()->user()?->email ?? auth()->user()?->username ?? '' }}</div>
+                                <div id="dropdownUserEmail" style="font-size: 0.8rem; color: #64748b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ auth()->user()?->email ?? auth()->user()?->username ?? '' }}</div>
                             </div>
                         </div>
 
@@ -327,9 +346,18 @@
                             <i class="ph ph-user-circle" style="font-size: 1.1rem;"></i> {{ __('messages.account_settings') }}
                         </button>
                         
-                        @if($role === 'admin')
-                            <a href="{{ route('admin.reports') }}" 
-                               style="display: flex; align-items: center; gap: 0.875rem; padding: 1rem 1.25rem; font-weight: 600; color: #1e293b; text-decoration: none; cursor: pointer; border-bottom: 1px solid #e2e8f0; transition: background 0.2s;"
+                        {{-- Security Link (Admin/Office/MESO) --}}
+                        @if(in_array(auth()->user()->role, ['admin', 'office']))
+                            <a href="{{ route('2fa.setup') }}" 
+                               style="display: flex; align-items: center; gap: 0.875rem; padding: 1rem 1.25rem; font-weight: 600; color: #1e293b; text-decoration: none; cursor: pointer; border-bottom: 1px solid #e2e8f0; transition: background-color 0.2s;"
+                               onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='transparent'">
+                                <i class="ph ph-shield-check" style="font-size: 1.1rem;"></i> Security & 2FA
+                            </a>
+                        @endif
+
+                        @if(auth()->user()->role === 'admin')
+                            <a href="{{ route('admin.logs') }}" 
+                               style="display: flex; align-items: center; gap: 0.875rem; padding: 1rem 1.25rem; font-weight: 600; color: #1e293b; text-decoration: none; cursor: pointer; border-bottom: 1px solid #e2e8f0; transition: background-color 0.2s;"
                                onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='transparent'">
                                 <i class="ph ph-clock-clockwise" style="font-size: 1.1rem;"></i> Activity Log
                             </a>
@@ -360,7 +388,7 @@
 
     {{-- ── ULTIMATE BULLETPROOF SETTINGS WINDOW (COMPREHENSIVE FLOATING) ── --}}
     <div id="settingsModal" class="modal-overlay" 
-         style="display: none; position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px); z-index: 15000; align-items: center; justify-content: center; padding: 1.5rem; font-family: 'Inter', sans-serif;">
+         style="display: none; position: fixed; inset: 0; background-color: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px); z-index: 1050; align-items: center; justify-content: center; padding: 1.5rem; font-family: 'Inter', sans-serif;">
         
         <div class="modal-container pulse-in" 
              style="width: 100%; max-width: 650px; background-color: #ffffff; color: #1e293b; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); overflow: hidden; display: flex; flex-direction: column;">
@@ -393,7 +421,7 @@
                         <div class="profile-upload-container" style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2rem; padding: 1.25rem; background-color: #fefce8; border-radius: 12px; border: 1px dashed #fdb913;">
                             <div class="profile-preview-wrapper" id="profileImagePreview" style="width: 80px; height: 80px; border-radius: 50%; overflow: hidden; background-color: #e2e8f0; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); flex-shrink: 0;">
                                 @if(auth()->user()->profile_picture)
-                                    <img src="{{ asset('storage/' . auth()->user()->profile_picture) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <img src="{{ Storage::url(auth()->user()->profile_picture) }}?v={{ time() }}" style="width: 100%; height: 100%; object-fit: cover;">
                                 @else
                                     <div style="width:100%; height:100%; background-color:#741b1b; color:white; display:flex; align-items:center; justify-content:center; font-size:2rem; font-weight:800;">
                                         {{ strtoupper(substr(auth()->user()->first_name, 0, 1)) }}
@@ -655,7 +683,7 @@
             if(file) {
                 const reader = new FileReader();
                 reader.onload = function(event) {
-                    document.getElementById('profileImagePreview').innerHTML = `<img src="${event.target.result}">`;
+                    document.getElementById('profileImagePreview').innerHTML = `<img src="${event.target.result}" style="width: 100%; height: 100%; object-fit: cover;">`;
                 }
                 reader.readAsDataURL(file);
             }
@@ -737,27 +765,97 @@
             btnIcon.style.display = 'inline-block';
             
             try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
                 const response = await fetch(profileForm.action, {
-                    method: 'POST', body: new FormData(profileForm),
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    method: 'POST', 
+                    body: new FormData(profileForm),
+                    headers: { 
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken
+                    }
                 });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorMessage = 'Server returned ' + response.status;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMessage = errorJson.message || errorMessage;
+                    } catch(e) {}
+                    throw new Error(errorMessage);
+                }
+
                 const result = await response.json();
+                
                 if (result.success) {
+                    // Update Avatars Reactively (Immediate Feedback)
+                    if (result.user.avatar) {
+                        const newUrl = result.user.avatar + '?v=' + Date.now();
+                        
+                        // 1. Update Header Avatar
+                        const headerContainer = document.getElementById('headerAvatarContainer');
+                        if (headerContainer) {
+                            headerContainer.innerHTML = `<img src="${newUrl}" id="headerAvatarImg" style="width:100%; height:100%; object-fit:cover;">`;
+                        }
+                        
+                        // 2. Update Dropdown Avatar
+                        const dropdownContainer = document.getElementById('dropdownAvatarContainer');
+                        if (dropdownContainer) {
+                            dropdownContainer.innerHTML = `<img src="${newUrl}" id="dropdownAvatarImg" style="width:100%; height:100%; object-fit:cover;">`;
+                        }
+
+                        // 3. Update Modal Preview too
+                        const modalPreview = document.getElementById('profileImagePreview');
+                        if (modalPreview) {
+                            modalPreview.innerHTML = `<img src="${newUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+                        }
+                    }
+
+                    // Update User Info Labels
+                    if (result.user.full_name) {
+                        const headerName = document.getElementById('headerUserName');
+                        if (headerName) headerName.innerText = result.user.full_name;
+                        
+                        const dropdownName = document.getElementById('dropdownUserName');
+                        if (dropdownName) dropdownName.innerText = result.user.full_name;
+                    }
+                    
+                    if (result.user.email) {
+                        const dropdownEmail = document.getElementById('dropdownUserEmail');
+                        if (dropdownEmail) dropdownEmail.innerText = result.user.email;
+                    }
+
+                    settingsModal.style.display = 'none';
                     Swal.fire({
-                        icon: 'success', title: 'Profile Updated!', text: 'Your changes have been saved.',
-                        timer: 2500, timerProgressBar: true, confirmButtonColor: '#741b1b'
-                    }).then(() => location.reload());
+                        icon: 'success', 
+                        title: 'Profile Updated!', 
+                        text: result.message,
+                        timer: 2000, 
+                        showConfirmButton: false
+                    });
                 } else {
-                    Swal.fire({ icon: 'error', title: 'Update Failed', text: result.message || 'Check your info.', confirmButtonColor: '#741b1b' });
+                    // Handle validation errors or logic errors
+                    let errorMsg = result.message || 'Please check your inputs.';
+                    if (result.errors) {
+                        errorMsg = Object.values(result.errors).flat().join('<br>');
+                    }
+                    Swal.fire({ 
+                        icon: 'error', 
+                        title: 'Update Failed', 
+                        html: `<div style="font-size: 0.9rem; color: #dc2626;">${errorMsg}</div>`, 
+                        confirmButtonColor: '#741b1b' 
+                    });
                 }
             } catch (error) {
-                Swal.fire({ icon: 'error', title: 'Error', text: 'Something went wrong.' });
+                Swal.fire({ icon: 'error', title: 'System Error', text: 'An unexpected error occurred. Please try again later.' });
             } finally {
                 btn.disabled = false;
                 btnText.innerText = 'Save Changes';
                 btnIcon.style.display = 'none';
             }
         });
+
     });
     </script>
     

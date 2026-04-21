@@ -18,6 +18,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'name',
         'first_name',
         'last_name',
         'middle_name',
@@ -29,6 +30,8 @@ class User extends Authenticatable
         'dark_mode',
         'two_factor_enabled',
         'language',
+        'google2fa_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -48,6 +51,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'google2fa_secret',
     ];
 
     /**

@@ -38,6 +38,8 @@ RUN apk add --no-cache \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
+    libwebp-dev \
+    libavif-dev \
     zip \
     unzip \
     git \
@@ -49,7 +51,7 @@ RUN apk add --no-cache \
     icu-dev
 
 # 2. Configure and Install PHP Extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif && \
     docker-php-ext-install \
     pdo_mysql \
     mbstring \

@@ -33,8 +33,8 @@
         <div class="utility-chips">
             <span class="chip active" data-role="all">All Roles</span>
             <span class="chip" data-role="student">Student</span>
-            <span class="chip" data-role="faculty">Faculty</span>
-            <span class="chip" data-role="staff">Non-Teaching</span>
+            <span class="chip" data-role="faculty">Personnel</span>
+            <span class="chip" data-role="staff">Vendor</span>
         </div>
     </div>
 
@@ -281,7 +281,9 @@
 @section('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    @php $rolePrefix = auth()->user()->role; @endphp
     document.addEventListener('DOMContentLoaded', function() {
+        const rolePrefix = '{{ $rolePrefix }}';
         const searchInput = document.getElementById('behaviorSearch');
         const tbody = document.getElementById('behaviorTbody');
         const hotlistTbody = document.getElementById('hotlistTbody');
@@ -334,7 +336,7 @@
             const end = endDateInput.value;
 
             // Update Registry Table
-            const resTable = await fetch(`/office/stats/behavior/search?q=${q}&role=${role}&start=${start}&end=${end}`);
+            const resTable = await fetch(`/${rolePrefix}/stats/behavior/search?q=${q}&role=${role}&start=${start}&end=${end}`);
             const dataTable = await resTable.json();
             
             tbody.innerHTML = dataTable.map(owner => `
@@ -365,7 +367,7 @@
             `).join('') || '<tr><td colspan="6" class="text-center py-5">No behavioral data found for selected criteria.</td></tr>';
 
             // Update Sidebar Trend & Hotlist
-            const resStats = await fetch(`/office/stats/behavior?start=${start}&end=${end}`, {
+            const resStats = await fetch(`/${rolePrefix}/stats/behavior?start=${start}&end=${end}`, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
             const dataStats = await resStats.json();
@@ -419,7 +421,7 @@
 
         const loadSparkline = async (id) => {
             if (sparklineCharts[id]) return;
-            const res = await fetch(`/office/stats/behavior/${id}/analyze`);
+            const res = await fetch(`/${rolePrefix}/stats/behavior/${id}/analyze`);
             const data = await res.json();
             const ctx = document.getElementById(`spark-${id}`).getContext('2d');
             sparklineCharts[id] = new Chart(ctx, {
@@ -435,7 +437,7 @@
         };
 
         const launchAudit = async (id) => {
-            const res = await fetch(`/office/stats/behavior/${id}/analyze`);
+            const res = await fetch(`/${rolePrefix}/stats/behavior/${id}/analyze`);
             const data = await res.json();
             document.getElementById('modalOwnerName').textContent = data.owner.name;
             document.getElementById('modalOwnerMeta').textContent = `${data.owner.role} • Joined ${data.owner.joined}`;

@@ -27,12 +27,6 @@ class DocumentValidationService
      */
     public function validate($filePath, $type)
     {
-        // API DISABLED FOR TESTING
-        return [
-            'success' => true,
-            'message' => 'Document validation bypassed (API disabled for testing).',
-        ];
-
         try {
             // 1. Perform OCR
             $response = Http::attach(
@@ -107,8 +101,6 @@ class DocumentValidationService
 
         } catch (\Exception $e) {
             Log::error('Document Validation Error: ' . $e->getMessage());
-            // In a production app, we might return success here to not block the user if the server is down,
-            // but for testing strictness, let's return false.
             return ['success' => false, 'message' => 'Connection to validation service failed.'];
         }
     }
@@ -118,23 +110,23 @@ class DocumentValidationService
         return match ($type) {
             'cr_file' => [
                 'required' => ['CERTIFICATE OF REGISTRATION', 'REGISTRATION'],
-                'supporting' => ['MV FILE NO', 'CHASSIS', 'ENGINE NO', 'PLATE NO', 'DENOMINATION', 'MODEL']
+                'supporting' => ['MV FILE NO', 'CHASSIS', 'ENGINE NO', 'PLATE NO', 'DENOMINATION', 'MODEL', 'PHILIPPINES', 'TRANSPORTATION']
             ],
             'or_file' => [
                 'required' => ['OFFICIAL RECEIPT', 'LTO'],
-                'supporting' => ['PAYOR', 'AMOUNT PAID', 'TOTAL', 'CASHIER', 'DATE', 'RECEIPT NO']
+                'supporting' => ['PAYOR', 'AMOUNT PAID', 'TOTAL', 'CASHIER', 'DATE', 'RECEIPT NO', 'PHILIPPINES', 'TRANSPORTATION']
             ],
             'license_file' => [
                 'required' => ['DRIVER', 'LICENSE'],
-                'supporting' => ['RESTRICTIONS', 'EXPIRY', 'ADDRESS', 'NATIONALITY', 'BIRTH', 'WEIGHT', 'HEIGHT']
+                'supporting' => ['RESTRICTIONS', 'EXPIRY', 'ADDRESS', 'NATIONALITY', 'BIRTH', 'WEIGHT', 'HEIGHT', 'PHILIPPINES']
             ],
-            'com_file' => [
+            'cor_file', 'com_file' => [
                 'required' => ['MATRICULATION', 'ENROLLMENT', 'EVSU'],
-                'supporting' => ['SEMESTER', 'SCHOOL YEAR', 'SUBJECTS', 'UNITS', 'TOTAL FEES']
+                'supporting' => ['SEMESTER', 'SCHOOL YEAR', 'SUBJECTS', 'UNITS', 'TOTAL FEES', 'ASSESSMENT']
             ],
             'student_id_file', 'employee_id_file' => [
-                'required' => ['EVSU', 'UNIVERSITY', 'IDENTIFICATION'],
-                'supporting' => ['STUDENT', 'FACULTY', 'EMPLOYEE', 'VALID', 'ID NO']
+                'required' => ['EVSU', 'UNIVERSITY'],
+                'supporting' => ['STUDENT', 'FACULTY', 'EMPLOYEE', 'VALID', 'ID NO', 'IDENTIFICATION', 'NAME']
             ],
             default => [
                 'required' => [],
@@ -142,4 +134,5 @@ class DocumentValidationService
             ],
         };
     }
+
 }

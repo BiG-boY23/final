@@ -4,6 +4,28 @@
 @section('subtitle', 'Manage system settings and users.')
 
 @section('content')
+<div class="dashboard-header-row no-print" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; background: var(--bg-card, white); padding: 1.25rem; border-radius: 16px; border: 1px solid var(--border-color, #e2e8f0);">
+    <div class="header-text">
+        <h2 style="margin:0; font-size: 1.25rem; font-weight: 800; color: var(--text-main, #1e293b);">System Command Center</h2>
+        <p style="margin:0; font-size: 0.85rem; color: var(--text-muted, #64748b);">{{ $stats['is_filtered'] ? 'Showing traffic data from ' . \Carbon\Carbon::parse($stats['from'])->format('M d, Y') . ' to ' . \Carbon\Carbon::parse($stats['to'])->format('M d, Y') : 'Real-time monitoring and oversight.' }}</p>
+    </div>
+    
+    <form action="{{ route('admin.dashboard') }}" method="GET" style="display: flex; gap: 0.75rem; align-items: center;">
+        <div style="display: flex; align-items: center; background: var(--bg-app, #f8fafc); border: 1px solid var(--border-color, #e2e8f0); border-radius: 10px; padding: 4px 8px; gap: 8px;">
+            <i class="ph ph-calendar" style="color: var(--text-muted, #64748b);"></i>
+            <input type="date" name="from" value="{{ $stats['from'] }}" style="border:none; background:transparent; font-size: 0.85rem; font-weight: 600; outline:none; color: var(--text-main, #1e293b);">
+            <span style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted, #94a3b8);">TO</span>
+            <input type="date" name="to" value="{{ $stats['to'] }}" style="border:none; background:transparent; font-size: 0.85rem; font-weight: 600; outline:none; color: var(--text-main, #1e293b);">
+        </div>
+        <button type="submit" style="background: #741b1b; color: white; border: none; padding: 0.6rem 1rem; border-radius: 10px; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+            <i class="ph ph-funnel"></i> Filter
+        </button>
+        @if($stats['is_filtered'])
+            <a href="{{ route('admin.dashboard') }}" style="background: var(--bg-card, #f1f5f9); color: var(--text-muted, #64748b); padding: 0.6rem 1rem; border-radius: 10px; font-size: 0.85rem; font-weight: 700; text-decoration: none; border: 1px solid var(--border-color, transparent);">Reset</a>
+        @endif
+    </form>
+</div>
+
 <!-- Summary Cards -->
 <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
     <!-- Total RFID Tags -->
@@ -29,7 +51,7 @@
 
     <!-- Today's Entries -->
     <div class="stat-card" style="border-left: 4px solid var(--color-evsu-gold);">
-        <div class="stat-label" style="color: var(--color-primary-hover);">Entries Today</div>
+        <div class="stat-label" style="color: var(--color-primary-hover);">{{ $stats['is_filtered'] ? 'Entries in Range' : 'Entries Today' }}</div>
         <div class="stat-value">{{ number_format($stats['entries_today']) }}</div>
         <i class="ph ph-car stat-icon" style="color: var(--color-evsu-gold); opacity: 0.2;"></i>
     </div>
@@ -56,7 +78,7 @@
     <div class="table-container">
         <div class="section-header">
             <h3><i class="ph ph-files" style="color: var(--color-evsu-gold); margin-right: 8px;"></i> Recent Audit Logs</h3>
-            <a href="#" class="btn btn-outline" style="font-size: 0.85rem;">View All</a>
+            <a href="{{ route('admin.reports') }}" class="btn btn-outline" style="font-size: 0.85rem;">View All</a>
         </div>
         <div class="table-wrapper">
             <table>
@@ -139,10 +161,10 @@
         <div class="table-container" style="padding: 1.5rem;">
             <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">Quick Actions</h3>
             <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-                <a href="#" class="btn btn-primary" style="justify-content: center;">
+                <a href="{{ route('admin.users') }}" class="btn btn-primary" style="justify-content: center;">
                     <i class="ph ph-user-plus"></i> Add New User
                 </a>
-                <a href="#" class="btn btn-outline" style="justify-content: center;">
+                <a href="{{ route('admin.settings') }}" class="btn btn-outline" style="justify-content: center;">
                     <i class="ph ph-gear"></i> System Settings
                 </a>
                 @php 
@@ -245,7 +267,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         body: JSON.stringify({ reason: reason })
                     })
-                    .then(res => res.json())
+                    .then(res => {
+                        if (!res.ok) throw new Error('Lockdown Command Failed');
+                        return res.json();
+                    })
                     .then(data => {
                         if (data.success) {
                             Swal.fire({
@@ -256,6 +281,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 showConfirmButton: false
                             }).then(() => location.reload());
                         }
+                    })
+                    .catch(e => {
+                        console.error('Lockdown Error:', e);
+                        Swal.fire('Command Failed', 'The server encountered an error while processing the lockdown request. Please check the logs.', 'error');
                     });
                 }
             });

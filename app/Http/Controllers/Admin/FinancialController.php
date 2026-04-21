@@ -40,7 +40,11 @@ class FinancialController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('full_name', 'like', "%{$search}%")
-                  ->orWhere('plate_number', 'like', "%{$search}%");
+                  ->orWhere('university_id', 'like', "%{$search}%")
+                  ->orWhere('plate_number', 'like', "%{$search}%")
+                  ->orWhereHas('vehicles', function($v) use ($search) {
+                      $v->where('plate_number', 'like', "%{$search}%");
+                  });
             });
         }
 

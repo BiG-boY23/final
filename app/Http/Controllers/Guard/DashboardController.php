@@ -31,7 +31,7 @@ class DashboardController extends Controller
             'guard_ticker' => SystemSetting::get('guard_ticker', 'Welcome to EVSU.')
         ];
 
-        // Hourly Traffic Trend (Last 12 Hours)
+        // Hourly Traffic Trend (Last 12 Hours) - Consistent with Analytics logic
         $hourlyTrends = [
             'labels' => [],
             'entries' => [],
@@ -39,9 +39,14 @@ class DashboardController extends Controller
         ];
         for ($i = 11; $i >= 0; $i--) {
             $time = now()->subHours($i);
+            $start = $time->copy()->startOfHour();
+            $end = $time->copy()->endOfHour();
+            
             $hourlyTrends['labels'][] = $time->format('h A');
-            $hourlyTrends['entries'][] = VehicleLog::where('type', 'entry')->whereDate('timestamp', $today)->whereHour('timestamp', $time->hour)->count();
-            $hourlyTrends['exits'][] = VehicleLog::where('type', 'exit')->whereDate('timestamp', $today)->whereHour('timestamp', $time->hour)->count();
+            $hourlyTrends['entries'][] = VehicleLog::where('type', 'entry')->whereBetween('timestamp', [$start, $end])->count() + 
+                                         Visitor::whereBetween('time_in', [$start, $end])->count();
+            $hourlyTrends['exits'][] = VehicleLog::where('type', 'exit')->whereBetween('timestamp', [$start, $end])->count() + 
+                                        Visitor::whereBetween('time_out', [$start, $end])->count();
         }
 
         // Identify Overstaying Vehicles (> 12 Hours)
@@ -101,27 +106,92 @@ class DashboardController extends Controller
         ]);
     }
 
+    public function search(Request $request)
+    {
+        $query = $request->query('query');
+        
+        if (empty($query)) {
+            return response()->json([]);
+        }
+
+        // Search in VehicleRegistration (owners) and Vehicle tables
+        $results = VehicleRegistration::with('vehicles')
+            ->where(function($q) use ($query) {
+                $q->where('full_name', 'LIKE', "%{$query}%")
+                  ->orWhere('plate_number', 'LIKE', "%{$query}%")
+                  ->orWhere('university_id', 'LIKE', "%{$query}%")
+                  ->orWhere('contact_number', 'LIKE', "%{$query}%");
+            })
+            ->limit(10)
+            ->get();
+
+        return response()->json($results);
+    }
+
     public function logVehicle(Request $request) {
         $request->validate([
             'tagId' => 'required',
             'type' => 'required|in:entry,exit'
         ]);
 
-        // 5-second Duplicate Filter (Backend Protection)
-        $recentLog = VehicleLog::where('rfid_tag_id', $request->tagId)
-            ->where('timestamp', '>=', now()->subSeconds(5))
+        return $this->processLogging($request->tagId, $request->type);
+    }
+
+    /**
+     * Manual Override: Virtual Scan via Plate Number
+     */
+    public function virtualScan(Request $request)
+    {
+        $request->validate([
+            'plate_number' => 'required|string|max:20'
+        ]);
+
+        $plate = strtoupper($request->plate_number);
+        $vehicle = Vehicle::where('plate_number', $plate)
+            ->orWhere('plate_number', 'LIKE', '%' . $plate . '%')
             ->first();
 
-        if ($recentLog) {
+        if (!$vehicle) {
             return response()->json([
                 'success' => false,
-                'message' => 'Duplicate scan ignored (5s cooldown)',
-                'cooldown' => true
-            ]);
+                'message' => 'Vehicle with plate number ' . $plate . ' not found.'
+            ], 404);
+        }
+
+        // Determine type based on last status
+        $lastLog = VehicleLog::where('rfid_tag_id', $vehicle->rfid_tag)
+            ->orderByDesc('timestamp')
+            ->first();
+
+        $type = ($lastLog && $lastLog->type === 'entry') ? 'exit' : 'entry';
+
+        // Reuse the core logging logic
+        return $this->processLogging($vehicle->rfid_tag, $type, true);
+    }
+
+    /**
+     * Core logging logic shared by Hardware RFID and Virtual Scan
+     */
+    protected function processLogging($tagId, $type, $isManual = false)
+    {
+        // 5-second Duplicate Filter (Backend Protection) - Skip if manual override
+        if (!$isManual) {
+            $recentLog = VehicleLog::where('rfid_tag_id', $tagId)
+                ->where('timestamp', '>=', now()->subSeconds(5))
+                ->first();
+
+            if ($recentLog) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Duplicate scan ignored (5s cooldown)',
+                    'cooldown' => true
+                ]);
+            }
         }
 
         // L0. LOCKDOWN CHECK
-        if (\Illuminate\Support\Facades\Cache::get('system_lockdown', false)) {
+        $lockdown = \Illuminate\Support\Facades\Cache::get('system_lockdown', ['active' => false]);
+        if ($lockdown['active'] ?? false) {
             return response()->json([
                 'success' => false,
                 'message' => 'ACCESS DENIED: Emergency System Lockdown as of ' . now()->format('h:i A'),
@@ -129,31 +199,33 @@ class DashboardController extends Controller
             ], 403);
         }
 
-        // C1. COOLDOWN CHECK
-        $cooldown = (int)SystemSetting::get('cooldown_interval', 3);
-        $lastLog = VehicleLog::where('rfid_tag_id', $request->tagId)
-            ->where('timestamp', '>', now()->subSeconds($cooldown))
-            ->first();
-        if ($lastLog) {
-             return response()->json(['success' => false, 'message' => "SCAN BLOCKED: Cooldown active ({$cooldown}s)"], 429);
+        // C1. COOLDOWN CHECK (Skip if manual)
+        if (!$isManual) {
+            $cooldown = (int)SystemSetting::get('cooldown_interval', 3);
+            $lastLog = VehicleLog::where('rfid_tag_id', $tagId)
+                ->where('timestamp', '>', now()->subSeconds($cooldown))
+                ->first();
+            if ($lastLog) {
+                return response()->json(['success' => false, 'message' => "SCAN BLOCKED: Cooldown active ({$cooldown}s)"], 429);
+            }
         }
 
         // C2. STRICT LOGIC CHECK (Only for Entry)
         $logic = SystemSetting::get('tag_logic', 'flexible');
-        if ($logic === 'strict' && $request->type === 'entry') {
-             $lastEntryExit = VehicleLog::where('rfid_tag_id', $request->tagId)->orderByDesc('timestamp')->first();
+        if ($logic === 'strict' && $type === 'entry') {
+             $lastEntryExit = VehicleLog::where('rfid_tag_id', $tagId)->orderByDesc('timestamp')->first();
              if ($lastEntryExit && $lastEntryExit->type === 'entry') {
                   return response()->json(['success' => false, 'message' => 'BLOCK: Vehicle is already INSIDE (Strict Logic)'], 400);
              }
         }
 
-        $vehicle = Vehicle::where('rfid_tag', $request->tagId)->first();
+        $vehicle = Vehicle::where('rfid_tag', $tagId)->first();
         $registration = $vehicle ? $vehicle->owner : null;
         
         // 1. BLACKLIST CHECK: Hard block if registration is blacklisted/rejected
         $isBlacklisted = $registration && $registration->status === 'rejected';
         if ($isBlacklisted) {
-            $this->recordActivity('BLACKLIST_ATTEMPT', "BLOCKED: Blacklisted tag [{$request->tagId}] attempted {$request->type} by {$registration->full_name}");
+            $this->recordActivity('BLACKLIST_ATTEMPT', "BLOCKED: Blacklisted tag [{$tagId}] attempted {$type} by {$registration->full_name}");
             return response()->json([
                 'success'     => false,
                 'message'     => 'ACCESS DENIED: This vehicle is BLACKLISTED. Do not allow entry.',
@@ -180,21 +252,23 @@ class DashboardController extends Controller
         $log = VehicleLog::create([
             'vehicle_registration_id' => $registration ? $registration->id : null,
             'vehicle_id' => $vehicle ? $vehicle->id : null,
-            'rfid_tag_id' => $request->tagId,
-            'type' => $request->type,
+            'rfid_tag_id' => $tagId,
+            'type' => $type,
             'timestamp' => now()
         ]);
 
-        $info = $registration ? ($registration->full_name . " [{$request->tagId}] (" . ($vehicle->plate_number ?? 'No Plate') . ")") : "Unregistered tag [{$request->tagId}]";
-        $this->recordActivity('RFID_SCAN', "Processed {$request->type} for {$info}");
+        $info = $registration ? ($registration->full_name . " [{$tagId}] (" . ($vehicle->plate_number ?? 'No Plate') . ")") : "Unregistered tag [{$tagId}]";
+        $actionType = $isManual ? 'MANUAL_OVERRIDE' : 'RFID_SCAN';
+        $this->recordActivity($actionType, "Processed {$type} for {$info}");
 
         return response()->json([
             'success' => true,
-            'message' => 'Vehicle logged as ' . $request->type,
+            'message' => 'Vehicle logged as ' . $type . ($isManual ? ' (Manual Override)' : ''),
             'log' => $log->load('vehicleRegistration', 'vehicle'),
             'occupancy' => VehicleLog::dailyOccupancy()
         ]);
     }
+
 
     public function entry()
     {
@@ -203,7 +277,8 @@ class DashboardController extends Controller
 
     public function storeVisitor(Request $request)
     {
-        if (\Illuminate\Support\Facades\Cache::get('system_lockdown', false)) {
+        $lockdown = \Illuminate\Support\Facades\Cache::get('system_lockdown', ['active' => false]);
+        if ($lockdown['active'] ?? false) {
             return response()->json([
                 'success' => false,
                 'message' => 'Manual entry blocked: Emergency Lockdown Active'
@@ -274,12 +349,17 @@ class DashboardController extends Controller
     public function analytics(Request $request)
     {
         $range = $request->query('range', 'today');
-        $data = $this->getAnalyticsInternal($range);
+        $from = $request->query('from');
+        $to = $request->query('to');
+        
+        $data = $this->getAnalyticsInternal($range, $from, $to);
         $overstaying = $this->getOverstaying();
         
         return view('guard.analytics', array_merge($data, [
             'overstaying' => $overstaying,
             'currentRange' => $range,
+            'fromDate' => $from,
+            'toDate' => $to,
             'title' => 'Traffic Analytics Hub',
             'subtitle' => 'Detailed flow analysis and security overstay reports.'
         ]));
@@ -288,10 +368,12 @@ class DashboardController extends Controller
     public function fetchAnalyticsData(Request $request)
     {
         $range = $request->query('range', 'today');
-        return response()->json($this->getAnalyticsInternal($range));
+        $from = $request->query('from');
+        $to = $request->query('to');
+        return response()->json($this->getAnalyticsInternal($range, $from, $to));
     }
 
-    protected function getAnalyticsInternal($range)
+    protected function getAnalyticsInternal($range, $from = null, $to = null)
     {
         $labels = [];
         $entries = [];
@@ -302,14 +384,25 @@ class DashboardController extends Controller
         $format = 'h A';
         $interval = 'hour';
 
-        if ($range === '12h') {
-            $startTime = now()->subHours(11)->startOfHour();
-            $endTime = now();
-        } elseif ($range === '7d') {
-            $startTime = now()->subDays(6)->startOfDay();
-            $endTime = now()->endOfDay();
-            $format = 'M d';
-            $interval = 'day';
+        if ($from && $to) {
+            $range = 'custom';
+            $startTime = \Carbon\Carbon::parse($from)->startOfDay();
+            $endTime = \Carbon\Carbon::parse($to)->endOfDay();
+            $diffInDays = $startTime->diffInDays($endTime);
+            if ($diffInDays > 1) {
+                $format = 'M d';
+                $interval = 'day';
+            }
+        } else {
+            if ($range === '12h') {
+                $startTime = now()->subHours(11)->startOfHour();
+                $endTime = now();
+            } elseif ($range === '7d') {
+                $startTime = now()->subDays(6)->startOfDay();
+                $endTime = now()->endOfDay();
+                $format = 'M d';
+                $interval = 'day';
+            }
         }
 
         if ($interval === 'hour') {
@@ -318,11 +411,11 @@ class DashboardController extends Controller
                 $time = $startTime->copy()->addHours($i);
                 $labels[] = $time->format($format);
                 
-                $entries[] = VehicleLog::where('type', 'entry')->whereBetween('timestamp', [$time->copy()->startOfHour(), $time->copy()->endOfHour()])->count() +
-                             Visitor::whereBetween('time_in', [$time->copy()->startOfHour(), $time->copy()->endOfHour()])->count();
+                $entries[] = (int)VehicleLog::where('type', 'entry')->whereBetween('timestamp', [$time->copy()->startOfHour(), $time->copy()->endOfHour()])->count() +
+                             (int)Visitor::whereBetween('time_in', [$time->copy()->startOfHour(), $time->copy()->endOfHour()])->count();
                 
-                $exits[] = VehicleLog::where('type', 'exit')->whereBetween('timestamp', [$time->copy()->startOfHour(), $time->copy()->endOfHour()])->count() +
-                           Visitor::whereBetween('time_out', [$time->copy()->startOfHour(), $time->copy()->endOfHour()])->count();
+                $exits[] = (int)VehicleLog::where('type', 'exit')->whereBetween('timestamp', [$time->copy()->startOfHour(), $time->copy()->endOfHour()])->count() +
+                           (int)Visitor::whereBetween('time_out', [$time->copy()->startOfHour(), $time->copy()->endOfHour()])->count();
             }
         } else {
             $diff = (int)$startTime->diffInDays($endTime);
@@ -330,29 +423,23 @@ class DashboardController extends Controller
                 $time = $startTime->copy()->addDays($i);
                 $labels[] = $time->format($format);
                 
-                $entries[] = VehicleLog::where('type', 'entry')->whereDate('timestamp', $time)->count() +
-                             Visitor::whereDate('time_in', $time)->count();
+                $entries[] = (int)VehicleLog::where('type', 'entry')->whereDate('timestamp', $time)->count() +
+                             (int)Visitor::whereDate('time_in', $time)->count();
                 
-                $exits[] = VehicleLog::where('type', 'exit')->whereDate('timestamp', $time)->count() +
-                           Visitor::whereDate('time_out', $time)->count();
+                $exits[] = (int)VehicleLog::where('type', 'exit')->whereDate('timestamp', $time)->count() +
+                           (int)Visitor::whereDate('time_out', $time)->count();
             }
         }
 
         // Peak Hours Summary
-        $peakHoursRaw = VehicleLog::select(DB::raw('strftime("%H", timestamp) as hr'), DB::raw('count(*) as count'))
+        $peakHoursRaw = VehicleLog::select(\DB::raw('strftime("%H", timestamp) as hr'), \DB::raw('count(*) as count'))
             ->whereBetween('timestamp', [$startTime, $endTime])
-            ->groupBy('hr')
-            ->orderByDesc('count')
-            ->limit(5)
-            ->get();
+            ->groupBy('hr')->orderByDesc('count')->limit(5)->get();
         
-        $peakHours = $peakHoursRaw->map(function($p) {
-            $hour = (int)$p->hr;
-            return [
-                'hour' => Carbon::createFromTime($hour, 0, 0)->format('g:i A'),
-                'count' => $p->count
-            ];
-        });
+        $peakHours = $peakHoursRaw->map(fn($p) => [
+            'hour' => \Carbon\Carbon::createFromTime((int)$p->hr, 0, 0)->format('g:i A'),
+            'count' => (int)$p->count
+        ]);
 
         return [
             'labels' => $labels,
@@ -494,6 +581,25 @@ class DashboardController extends Controller
             'active' => $status['active'] ?? false,
             'reason' => $status['reason'] ?? '',
             'ticker' => $ticker
+        ]);
+    }
+
+    public function showDetails($id)
+    {
+        $log = VehicleLog::with(['vehicleRegistration', 'vehicle'])->findOrFail($id);
+        
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $log->id,
+                'timestamp' => $log->timestamp->format('F d, Y h:i:s A'),
+                'type' => strtoupper($log->type),
+                'owner' => $log->vehicleRegistration ? $log->vehicleRegistration->full_name : 'Visitor/Unregistered',
+                'plate' => $log->vehicle ? $log->vehicle->plate_number : ($log->vehicleRegistration ? $log->vehicleRegistration->plate_number : 'N/A'),
+                'vehicle_details' => $log->vehicle ? $log->vehicle->vehicle_details : ($log->vehicleRegistration ? ($log->vehicleRegistration->make_brand . ' ' . $log->vehicleRegistration->model_name) : 'N/A'),
+                'rfid_tag' => $log->rfid_tag_id ?? 'N/A',
+                'vehicle_type' => $log->vehicle ? $log->vehicle->vehicle_type : ($log->vehicleRegistration ? $log->vehicleRegistration->vehicle_type : 'N/A'),
+            ]
         ]);
     }
 }

@@ -20,7 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
         $middleware->trustProxies(at: '*');
         $middleware->alias([
-            'role' => \App\Http\Middleware\CheckRole::class,
+            'role'         => \App\Http\Middleware\CheckRole::class,
+            '2fa.verified' => \App\Http\Middleware\Ensure2FAVerified::class,
         ]);
     })
 

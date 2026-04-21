@@ -5,12 +5,30 @@
 
 @section('content')
 
-<!-- Real-Time System Clock -->
-<div class="no-print" style="margin-bottom: 2rem; text-align: center; background: linear-gradient(135deg, #1e293b, #334155); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; justify-content: center; align-items: center; gap: 1.5rem;">
-    <i class="ph-bold ph-clock" style="font-size: 2rem; color: #f59e0b;"></i>
-    <div>
-        <div id="realTimeClock" style="font-size: 1.8rem; font-weight: 800; font-family: 'Inter', sans-serif; letter-spacing: 0.5px; line-height: 1.2;">-- --, ---- --:--:-- --</div>
-        <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.8; font-weight: 700; margin-top: 2px;">University Reference Time (PST)</div>
+<!-- Real-Time System Clock & Global Search -->
+<div class="no-print" style="margin-bottom: 2rem; display: flex; gap: 1.25rem; align-items: center;">
+    <!-- Global Search -->
+    <div style="flex: 1.5; position: relative;">
+        <div style="background: white; padding: 0.75rem 1.25rem; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 10px rgba(0,0,0,0.03); display: flex; align-items: center; gap: 0.8rem;">
+            <i class="ph-bold ph-magnifying-glass" style="font-size: 1.25rem; color: #741b1b;"></i>
+            <input type="text" id="globalSearchInput" placeholder="Search Plate Number or Owner Name..." 
+                style="flex: 1; border: none; outline: none; font-size: 1rem; font-weight: 650; color: #1e293b; background: transparent;">
+            <div id="searchLoader" style="display: none;">
+                <i class="ph ph-spinner-gap animate-spin" style="font-size: 1.25rem; color: #741b1b;"></i>
+            </div>
+        </div>
+        <!-- Search Results Dropdown -->
+        <div id="searchResultsDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1100; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 15px 25px -5px rgba(0, 0, 0, 0.1); margin-top: 0.5rem; max-height: 400px; overflow-y: auto; padding: 0.4rem;">
+        </div>
+    </div>
+
+    <!-- Clock -->
+    <div style="flex: 1; background: linear-gradient(135deg, #1e293b, #334155); color: white; padding: 0.75rem 1.25rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; justify-content: center; align-items: center; gap: 1rem;">
+        <i class="ph-bold ph-clock" style="font-size: 1.75rem; color: #f59e0b;"></i>
+        <div style="display: flex; flex-direction: column; justify-content: center;">
+            <div id="realTimeClock" style="font-size: 1.25rem; font-weight: 800; font-family: 'Inter', sans-serif; letter-spacing: 0.2px; line-height: 1;">-- --, ---- --:--:-- --</div>
+            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; font-weight: 700; margin-top: 2px;">University Reference Time (PST)</div>
+        </div>
     </div>
 </div>
 
@@ -49,9 +67,8 @@
 </div>
 
 <audio id="lockdownAlarm" src="https://www.soundjay.com/buttons/sounds/beep-01a.mp3" preload="auto"></audio>
-<audio id="blacklistAlarm" preload="auto">
-    <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
-</audio>
+<audio id="blacklistAlarm" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" preload="auto"></audio>
+<audio id="expiredAlert" src="https://www.soundjay.com/communication/sounds/pager-beep-1.mp3" preload="auto"></audio>
 
 <style>
     @keyframes lockdown-pulse {
@@ -73,10 +90,18 @@
             Detected {{ $overstaying->count() }} vehicle(s) inside for over 12 hours. Check logs for potential abandoned or overnight vehicles.
         </p>
     </div>
-    <div style="display: flex; gap: 0.5rem;">
-        @foreach($overstaying->take(3) as $o)
-            <span class="badge" style="background: #ef4444; color: white; border: none;">{{ $o->vehicleRegistration->plate_number ?? $o->rfid_tag_id }}</span>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        @foreach($overstaying->take(5) as $o)
+            <span class="badge overstaying-badge clickable-plate" 
+                  title="Click to view details"
+                  style="background: #ef4444; color: white; border: none; cursor: pointer; transition: transform 0.2s;" 
+                  data-query="{{ $o->vehicleRegistration->plate_number ?? '' }}">
+                {{ $o->vehicleRegistration->plate_number ?? $o->rfid_tag_id }}
+            </span>
         @endforeach
+        @if($overstaying->count() > 5)
+            <span style="font-size: 0.8rem; color: #ef4444; font-weight: 800;">+{{ $overstaying->count() - 5 }} More</span>
+        @endif
     </div>
 </div>
 @endif
@@ -179,6 +204,14 @@
 
     </div>
     <div style="display: flex; gap: 10px; align-items: center;">
+        <!-- Manual Plate Override (Virtual Scan) -->
+        <div style="display: flex; align-items: center; gap: 0.5rem; background: #f1f5f9; padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid #cbd5e1; margin-right: 1rem;">
+             <i class="ph ph-keyboard" style="color: #475569;"></i>
+             <input type="text" id="manualPlateInput" placeholder="Plate Number" 
+                 style="background: transparent; border: none; outline: none; font-weight: 700; width: 120px; font-size: 0.9rem; text-transform: uppercase;">
+             <button type="button" id="btnVirtualScan" class="btn btn-primary" style="padding: 0.3rem 0.8rem; font-size: 0.75rem;">Process</button>
+        </div>
+
         <!-- TTS Toggle Switch -->
         <div style="display: flex; align-items: center; gap: 0.75rem; background: #f8fafc; padding: 0.5rem 1rem; border-radius: 99px; border: 1px solid #e2e8f0; margin-right: 1.5rem;">
             <i class="ph ph-speaker-high" style="font-size: 1.25rem; color: #64748b;"></i>
@@ -194,8 +227,8 @@
         <button type="button" id="btnConnectHardware" class="btn btn-outline" style="gap: 0.5rem;">
             <i class="ph ph-plugs"></i> <span>Connect Reader</span>
         </button>
-        <button type="button" id="btnSimulateScan" class="btn btn-outline" style="gap: 0.5rem; border-style: dashed;">
-            <i class="ph ph-monitor"></i> <span>Simulate</span>
+        <button type="button" id="btnStopBridge" class="btn btn-outline" style="gap: 0.5rem; color: #ef4444; border-color: #fca5a5; display: none;">
+            <i class="ph ph-power"></i> <span>Kill Bridge</span>
         </button>
     </div>
 </div>
@@ -240,10 +273,18 @@
 
 <!-- Real-time Activity Logs -->
 <div class="table-container">
-    <div class="section-header">
-        <h3>{{ __('messages.recent_activity') }}</h3>
-        <div style="display: flex; gap: 1rem;">
-            <a href="{{ route('guard.entry') }}" class="btn btn-primary">
+    <div class="section-header" style="justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap;">
+        <h3 style="margin: 0;"><i class="ph-bold ph-clock-counter-clockwise"></i> {{ __('messages.recent_activity') }}</h3>
+        
+        <!-- Standardized Local Search -->
+        <div style="flex-grow: 1; max-width: 400px; position: relative;" class="search-box-wrapper no-print">
+            <i class="ph ph-magnifying-glass" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
+            <input type="text" id="logSearchInput" placeholder="Filter logs (Name, Plate, ID)..." 
+                style="width: 100%; padding: 0.7rem 1rem 0.7rem 2.8rem; border: 1px solid #e2e8f0; border-radius: 10px; outline: none;">
+        </div>
+
+        <div style="display: flex; gap: 1rem; align-items: center;" class="no-print">
+            <a href="{{ route('guard.entry') }}" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;">
                 <i class="ph ph-plus"></i> {{ __('messages.manual_entry') }}
             </a>
         </div>
@@ -264,7 +305,7 @@
             </thead>
             <tbody>
                 @forelse ($recentLogs as $log)
-                <tr>
+                <tr data-plates="{{ $log->vehicleRegistration->plate_number ?? '' }}" data-ids="{{ $log->vehicleRegistration->university_id ?? '' }}">
                     <td>{{ $log->timestamp->format('h:i:s A') }}</td>
                     <td>
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -285,7 +326,7 @@
                         @endif
                     </td>
                     <td>
-                        <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">View Details</button>
+                        <button class="btn btn-outline btn-view-details" data-id="{{ $log->id }}" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">View Details</button>
                     </td>
                 </tr>
                 @empty
@@ -346,11 +387,69 @@
 
 
 
+<!-- Vehicle Log Details Modal -->
+<div class="modal fade" id="logDetailsModal" tabindex="-1" aria-labelledby="logDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
+            <div class="modal-header" style="background: #741b1b; color: white; border-radius: 16px 16px 0 0; border: none; padding: 1.25rem 1.5rem;">
+                <h5 class="modal-title" id="logDetailsModalLabel" style="font-weight: 800; display: flex; align-items: center; gap: 0.75rem;">
+                    <i class="ph-bold ph-info"></i> Activity Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding: 2rem;">
+                <div id="modalLoading" class="text-center py-5">
+                    <i class="ph-bold ph-spinner-gap animate-spin" style="font-size: 3rem; color: #741b1b;"></i>
+                    <p style="margin-top: 1rem; color: #64748b; font-weight: 600;">Fetching data...</p>
+                </div>
+                <div id="modalContent" style="display: none;">
+                    <div style="background: #f8fafc; padding: 1.25rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 0.25rem;">Vehicle Owner</div>
+                        <div id="detailOwner" style="font-size: 1.2rem; font-weight: 800; color: #1e293b;">-</div>
+                        <div id="detailTag" style="font-size: 0.9rem; font-weight: 600; color: #741b1b;">Tag: -</div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="background: white; padding: 1rem; border-radius: 10px; border: 1px solid #e2e8f0;">
+                            <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Plate Number</div>
+                            <div id="detailPlate" style="font-weight: 800; color: #1e293b;">-</div>
+                        </div>
+                        <div style="background: white; padding: 1rem; border-radius: 10px; border: 1px solid #e2e8f0;">
+                            <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Log Type</div>
+                            <div id="detailType" aria-label="Status Badge">-</div>
+                        </div>
+                    </div>
+
+                    <div style="background: white; padding: 1rem; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <i class="ph ph-car" style="color: #64748b; font-size: 1.25rem;"></i>
+                            <div>
+                                <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Vehicle Details</div>
+                                <div id="detailVehicle" style="font-weight: 700; color: #1e293b;">-</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <i class="ph ph-clock" style="color: #64748b; font-size: 1.25rem;"></i>
+                            <div>
+                                <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Timestamp</div>
+                                <div id="detailTimestamp" style="font-weight: 700; color: #1e293b;">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="border: none; padding: 1rem 2rem 2rem;">
+                <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal" style="border-radius: 10px; padding: 0.75rem; font-weight: 700; background: #f1f5f9; color: #475569; border: none;">Close Details</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const btnConnect = document.getElementById('btnConnectHardware');
-        const btnSimulate = document.getElementById('btnSimulateScan');
+        const btnStop = document.getElementById('btnStopBridge');
         const toggleVoice = document.getElementById('toggleVoice');
         const statusText = document.getElementById('statusText');
         const statusIcon = document.getElementById('statusIcon');
@@ -366,25 +465,57 @@
             if (voiceEnabled) announce("Voice announcements enabled.");
         };
 
-        function announce(text, isUrgent = false) {
+        function announce(text, style = 'normal') {
             if (!voiceEnabled) return;
             const synth = window.speechSynthesis;
             const utterance = new SpeechSynthesisUtterance(text);
             
-            // Try to find a professional natural voice
             const voices = synth.getVoices();
-            utterance.voice = voices.find(v => v.name.includes('Google') || v.name.includes('Natural')) || voices[0];
-            utterance.rate = 0.9;  // Slightly slower for clarity
-            utterance.pitch = 1.0;
+            const maleVoice = voices.find(v => 
+                v.name.includes('Google US English Male') || 
+                v.name.includes('Microsoft David') || 
+                v.name.toLowerCase().includes('male')
+            ) || voices.find(v => v.name.includes('Google') || v.name.includes('Natural')) || voices[0];
 
-            if (isUrgent) {
-                synth.cancel(); // Interrupt current speech for emergency
-                // Play alarm sound before blacklisted warning
-                const alarm = new Audio('https://www.soundjay.com/buttons/sounds/beep-01a.mp3');
-                alarm.play().catch(e => {});
+            utterance.voice = maleVoice;
+            utterance.rate = 1.0; 
+            utterance.pitch = 0.9;
+
+            if (style === 'urgent') { // Blacklisted
+                console.log("Triggering Siren (Urgent)");
+                synth.cancel(); 
+                const alarm = document.getElementById('blacklistAlarm');
+                if (alarm) { alarm.currentTime = 0; alarm.play().catch(e => console.error("Siren Play Error:", e)); }
+            } else if (style === 'warning') { // Expired
+                console.log("Triggering Buzzer (Warning)");
+                synth.cancel();
+                const buzzer = document.getElementById('expiredAlert');
+                if (buzzer) { buzzer.currentTime = 0; buzzer.play().catch(e => console.error("Buzzer Play Error:", e)); }
             }
             
             synth.speak(utterance);
+        }
+
+        /**
+         * Optimized Voice Alert: [Plate Char-by-Char], [Last Name], [Status]
+         */
+        function speakScan(plate, fullName, status) {
+            if (!voiceEnabled) return;
+            
+            // 1. Format Plate: Read character by character by adding spaces
+            const formattedPlate = (plate || '').toUpperCase().split('').join(' ');
+            
+            // 2. Concise Last Name: Get last word of full_name
+            const lastName = fullName ? fullName.trim().split(' ').pop() : 'User';
+            
+            // 3. Normalized Status
+            const statusLabel = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+            
+            // 4. Construct Speech Text with pauses (commas)
+            const speechText = `${formattedPlate}, ${lastName}, ${statusLabel}`;
+            
+            console.log("Voice Announcement:", speechText);
+            announce(speechText);
         }
         
         let bridgeSocket = null;
@@ -393,7 +524,7 @@
         function updateUIStatus(status) {
             if (status === 'connected') {
                 isConnected = true;
-                statusText.innerText = 'Scanner Online';
+                statusText.innerText = 'Live Scanner Online';
                 statusIcon.innerHTML = '<span class="live-badge"><span class="pulse-dot"></span>LIVE</span>';
                 scannerSubtext.innerText = 'Live hardware monitoring active — broadcasting to all portals.';
                 btnConnect.innerHTML = '<i class="ph ph-plugs-connected"></i> Disconnect Reader';
@@ -412,8 +543,37 @@
                 btnConnect.classList.remove('btn-primary');
                 btnConnect.classList.add('btn-outline');
                 btnConnect.disabled = false;
+                btnStop.style.display = 'none';
             }
         }
+
+        async function checkBridgeStatus() {
+            try {
+                const res = await fetch('{{ route('bridge.status') }}');
+                const data = await res.json();
+                if (data.online) {
+                    btnStop.style.display = 'flex';
+                } else {
+                    btnStop.style.display = 'none';
+                    // Only force offline if we are NOT currently holding an active WebSocket connection
+                    if (isConnected && (!bridgeSocket || bridgeSocket.readyState !== WebSocket.OPEN)) {
+                        updateUIStatus('offline');
+                    }
+                }
+            } catch (e) {}
+        }
+        setInterval(checkBridgeStatus, 5000);
+        checkBridgeStatus();
+
+        btnStop.onclick = async function() {
+            const res = await fetch('{{ route('bridge.stop') }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' } });
+            const data = await res.json();
+            if(data.success) {
+                if (bridgeSocket) bridgeSocket.close();
+                updateUIStatus('offline');
+                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Bridge Process Terminated', showConfirmButton: false, timer: 2000 });
+            }
+        };
 
         btnConnect.addEventListener('click', async function() {
 
@@ -473,19 +633,96 @@
             };
         });
 
-        // Simulation for testing
-        btnSimulate.addEventListener('click', function() {
-            Swal.fire({
-                title: 'Simulate Plate Scan',
-                input: 'text',
-                inputLabel: 'Enter RFID Tag ID or Plate Number',
-                inputPlaceholder: 'e.g. 1234567890',
-                showCancelButton: true,
-                confirmButtonText: 'Scan',
-                confirmButtonColor: '#1e293b'
-            }).then((result) => {
-                if (result.isConfirmed && result.value) {
-                    processTag(result.value);
+        // --- Manual Override (Virtual Scan) ---
+        const btnVirtualScan = document.getElementById('btnVirtualScan');
+        const manualPlateInput = document.getElementById('manualPlateInput');
+
+        btnVirtualScan.addEventListener('click', async function() {
+            const plate = manualPlateInput.value.trim();
+            if (!plate) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Plate Required',
+                    text: 'Please enter a plate number.',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 2000
+                });
+                return;
+            }
+
+            btnVirtualScan.disabled = true;
+            btnVirtualScan.innerText = '...';
+
+            try {
+                const response = await fetch("{{ route('guard.virtual.scan') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({ plate_number: plate })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLogRow(result.log);
+                    updateCounters(result.log.type, result.occupancy);
+                    manualPlateInput.value = '';
+                    
+                    const fullName = result.log.vehicle_registration?.full_name || 'User';
+                    const plateVal = result.log.vehicle_registration?.plate_number || plate;
+                    speakScan(plateVal, fullName, result.log.type);
+                    
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: result.message,
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Virtual Scan Failed',
+                        text: result.message,
+                        confirmButtonColor: '#1e293b'
+                    });
+                }
+            } catch (e) {
+                console.error('Virtual scan error', e);
+            } finally {
+                btnVirtualScan.disabled = false;
+                btnVirtualScan.innerText = 'Process';
+            }
+        });
+
+        // Add Enter key support for plate input
+        manualPlateInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                btnVirtualScan.click();
+            }
+        });
+
+        // Local Table Search Logic
+        const logSearchInput = document.getElementById('logSearchInput');
+        logSearchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const rows = logsTable.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+                if(row.id === 'emptyRow') return;
+                const text = row.innerText.toLowerCase();
+                const plates = row.getAttribute('data-plates') || '';
+                const ids = row.getAttribute('data-ids') || '';
+                
+                if (text.includes(query) || plates.toLowerCase().includes(query) || ids.toLowerCase().includes(query)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
                 }
             });
         });
@@ -493,6 +730,21 @@
         let lastProcessedTags = {}; // Store last seen time for each tag
 
         async function processTag(tagId) {
+            // 0. Scanner Awareness: If the user is currently focused on an input field (like a search bar),
+            // fill that field instead of performing a system-wide log override.
+            const activeEl = document.activeElement;
+            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && !activeEl.readOnly) {
+                activeEl.value = tagId;
+                activeEl.dispatchEvent(new Event('input'));
+                
+                // Show a subtle visual cue that tag was captured into field
+                activeEl.style.borderColor = '#10b981';
+                setTimeout(() => activeEl.style.borderColor = '', 1000);
+                
+                announce("ID Captured.");
+                return; // Exit without logging
+            }
+
             // 1. Protection against modal spam: Don't trigger if a popup is already visible (only for unregistered tags)
             if (Swal.isVisible() && !Swal.isTimerRunning()) {
                  console.log("Ignoring scan - SweetAlert is currently visible");
@@ -575,8 +827,8 @@
                         timerProgressBar: true,
                     });
 
-                    // Trigger Voice
-                    announce(`${name}, ${type === 'entry' ? 'Entry' : 'Exit'}.`);
+                    // Trigger Optimized Voice
+                    speakScan(plate, name, type);
                 } else if (result.lockdown) {
                     // CRITICAL LOCKDOWN ALERT
                     Swal.fire({
@@ -625,7 +877,7 @@
                     }
 
                     // Urgent voice announcement
-                    announce(`Warning! ${result.owner} is blacklisted. Do not allow entry. Detain immediately.`, true);
+                    announce(`Warning! ${result.owner} is blacklisted. Do not allow entry. Detain immediately.`, 'urgent');
 
                     Swal.fire({
                         icon: 'error',
@@ -669,17 +921,20 @@
                         }, 5000);
                     }
 
+                    // Trigger Siren & MESO Renewal Voice Alert
+                    const plate = result.plate || '';
+                    announce(`Warning! Expired Tag detected is blacklisted. ${plate} denied entry. Please proceed to MESO, Maintenance and Engineering Services Office, for the renewal of your tag.`, 'urgent');
+
                     Swal.fire({
                         icon: 'error',
                         title: 'ACCESS DENIED',
-                        text: result.message,
+                        html: `
+                            <p style="font-weight: 700; color: #dc2626; margin-bottom: 0.5rem;">${result.message}</p>
+                            <p style="font-size: 0.9rem; color: #64748b;">Please advise the owner to visit the <strong>MESO (Maintenance and Engineering Services Office)</strong> for tag renewal.</p>
+                        `,
                         background: '#fee2e2',
                         confirmButtonColor: '#dc2626'
                     });
-
-                    // Trigger Emergency Voice (Denial/Blacklist)
-                    const deniedName = result.log?.vehicle_registration?.full_name || 'Expired Tag Detected';
-                    announce(`Warning: ${deniedName} is Blacklisted.`, true);
                 }
             } catch (e) { console.error('Logging error', e); }
         }
@@ -688,18 +943,21 @@
             const emptyRow = document.getElementById('emptyRow');
             if (emptyRow) emptyRow.remove();
 
-            const row = logsTable.insertRow(0); // Add at top
-            
-            // Format time correctly from timestamp
-            const logTime = new Date(log.timestamp);
-            const time = logTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-            
-            const badgeType = log.type === 'entry' ? 
-                `<span class="badge badge-toggle" data-id="${log.id}" style="background: #ecfdf5; color: #059669; cursor: pointer;">ENTRY</span>` : 
-                `<span class="badge badge-toggle" data-id="${log.id}" style="background: #fef2f2; color: #dc2626; cursor: pointer;">EXIT</span>`;
+            const plates = log.vehicle_registration?.plate_number || log.vehicle?.plate_number || '';
+            const univId = log.vehicle_registration?.university_id || '';
+            const timestamp = new Date(log.timestamp);
+            const timeStr = timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+
+            const row = document.createElement('tr');
+            row.setAttribute('data-plates', plates);
+            row.setAttribute('data-ids', univId);
+
+            const badgeType = log.type === 'entry' 
+                ? `<span class="badge badge-toggle" data-id="${log.id}" style="background: #ecfdf5; color: #059669; cursor: pointer;">ENTRY</span>`
+                : `<span class="badge badge-toggle" data-id="${log.id}" style="background: #fef2f2; color: #dc2626; cursor: pointer;">EXIT</span>`;
 
             row.innerHTML = `
-                <td>${time}</td>
+                <td>${timeStr}</td>
                 <td>
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <i class="ph ph-car" style="font-size: 1.25rem;"></i>
@@ -710,14 +968,17 @@
                     </div>
                 </td>
                 <td>${log.vehicle_registration?.full_name || 'N/A'}</td>
-                <td><span class="badge" style="background: #f1f5f9; color: #1e293b; border: 1px solid #e2e8f0;">${log.vehicle_registration?.plate_number || 'N/A'}</span></td>
+                <td><span class="badge" style="background: #f1f5f9; color: #1e293b; border: 1px solid #e2e8f0;">${plates || 'N/A'}</span></td>
                 <td>${badgeType}</td>
-                <td><button class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">View</button></td>
+                <td><button class="btn btn-outline btn-view-details" data-id="${log.id}" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">View Details</button></td>
             `;
+            
+            logsTable.prepend(row);
             
             // Highlight animation
             row.style.animation = 'highlight 1s ease-out';
         }
+
 
         function updateCounters(type, newOccupancy = null) {
             const counter = type === 'entry' ? document.getElementById('countEntries') : document.getElementById('countExits');
@@ -753,7 +1014,7 @@
                 }
             }
         });
-
+        
         async function toggleLogType(id, badgeElement) {
             try {
                 const response = await fetch(`{{ url('guard/log-vehicle') }}/${id}/toggle`, {
@@ -798,6 +1059,230 @@
                 console.error('Toggle error', e);
             }
         }
+
+        // --- Global Search Logic ---
+        const globalSearchInput = document.getElementById('globalSearchInput');
+        const searchResultsDropdown = document.getElementById('searchResultsDropdown');
+        const searchLoader = document.getElementById('searchLoader');
+        let searchTimeout;
+
+        if (globalSearchInput) {
+            globalSearchInput.addEventListener('input', function() {
+                const query = this.value.trim();
+                if (query.length < 2) {
+                    searchResultsDropdown.style.display = 'none';
+                    return;
+                }
+
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(async () => {
+                    searchLoader.style.display = 'block';
+                    try {
+                        const response = await fetch(`{{ route('guard.search') }}?query=${encodeURIComponent(query)}`);
+                        const results = await response.json();
+                        
+                        if (results.length > 0) {
+                            searchResultsDropdown.innerHTML = results.map(item => `
+                                <div class="search-result-item" onclick='showOwnerDetails(${JSON.stringify(item).replace(/'/g, "&#39;")})' style="padding: 1rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                        <div>
+                                            <div style="font-weight: 700; color: #1e293b;">${item.full_name}</div>
+                                            <div style="font-size: 0.8rem; color: #64748b; font-weight: 500;">${item.college_dept || item.office || 'Department N/A'}</div>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <div style="font-weight: 800; color: #741b1b; font-size: 0.9rem;">${item.plate_number || 'No Plate'}</div>
+                                            <div style="font-size: 0.75rem; color: #94a3b8;">${item.vehicle_type || ''}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('');
+                            searchResultsDropdown.style.display = 'block';
+                        } else {
+                            searchResultsDropdown.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: #94a3b8;">No matching records found.</div>';
+                            searchResultsDropdown.style.display = 'block';
+                        }
+                    } catch (e) {
+                        console.error('Search error', e);
+                    } finally {
+                        searchLoader.style.display = 'none';
+                    }
+                }, 300);
+            });
+        }
+
+        // Close search results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (globalSearchInput && !globalSearchInput.contains(e.target) && searchResultsDropdown && !searchResultsDropdown.contains(e.target)) {
+                searchResultsDropdown.style.display = 'none';
+            }
+        });
+
+        // Handle overstaying badge clicks
+        document.addEventListener('click', function(e) {
+            const plateBtn = e.target.closest('.clickable-plate');
+            if (plateBtn) {
+                const query = plateBtn.getAttribute('data-query');
+                globalSearchInput.value = query;
+                const event = new Event('input', { bubbles: true });
+                globalSearchInput.dispatchEvent(event);
+                globalSearchInput.focus();
+                
+                // Scroll to top to ensure search is visible
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+
+        window.showOwnerDetails = (item) => {
+            searchResultsDropdown.style.display = 'none';
+            Swal.fire({
+                title: '<div style="font-size: 1.25rem; font-weight: 800; color: #1e293b;">Vehicle Owner Profile</div>',
+                html: `
+                    <div style="text-align: left; padding: 0.5rem;">
+                        <div style="background: #f8fafc; padding: 1.25rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
+                            <div style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 0.25rem;">Owner Name</div>
+                            <div style="font-size: 1.2rem; font-weight: 800; color: #1e293b;">${item.full_name}</div>
+                            <div style="font-size: 0.9rem; font-weight: 600; color: #741b1b;">ID: ${item.university_id || 'N/A'}</div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div style="background: white; padding: 1rem; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Primary Plate</div>
+                                <div style="font-weight: 800; color: #1e293b;">${item.plate_number || 'N/A'}</div>
+                            </div>
+                            <div style="background: white; padding: 1rem; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Vehicle Type</div>
+                                <div style="font-weight: 800; color: #1e293b;">${item.vehicle_type || 'N/A'}</div>
+                            </div>
+                        </div>
+
+                        <div style="background: white; padding: 1rem; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <i class="ph ph-buildings" style="color: #64748b;"></i>
+                                <div>
+                                    <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Department/Role</div>
+                                    <div style="font-weight: 700; color: #1e293b;">${item.college_dept || item.office || item.role || 'N/A'}</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="ph ph-phone" style="color: #64748b;"></i>
+                                <div>
+                                    <div style="font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Contact Number</div>
+                                    <div style="font-weight: 700; color: #1e293b;">${item.contact_number || 'No contact info'}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: #fef2f2; padding: 0.75rem; border-radius: 8px; border: 1px dashed #ef4444; text-align: center; color: #dc2626; font-weight: 700; font-size: 0.85rem;">
+                            Status: ${item.status?.toUpperCase() || 'UNKNOWN'}
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#1e293b',
+                width: '450px'
+            });
+        };
+        // --- View Details Modal Logic ---
+        const logDetailsModalEl = document.getElementById('logDetailsModal');
+        // Safely initialize Bootstrap Modal if available
+        const logDetailsModal = (logDetailsModalEl && typeof bootstrap !== 'undefined') ? new bootstrap.Modal(logDetailsModalEl) : null;
+        const modalLoading = document.getElementById('modalLoading');
+        const modalContent = document.getElementById('modalContent');
+        
+        // Use event delegation on the table for better performance and reliability
+        if (logsTable) {
+            logsTable.addEventListener('click', function(e) {
+                const btn = e.target.closest('.btn-view-details');
+                if (btn) {
+                    e.preventDefault();
+                    const logId = btn.getAttribute('data-id');
+                    console.log('View Details clicked for ID:', logId);
+                    if (logId) showLogDetails(logId);
+                }
+            });
+        }
+
+        async function showLogDetails(id) {
+            if (!logDetailsModal) {
+                console.error('Bootstrap Modal not initialized. Check if bootstrap is loaded.');
+                // Fallback to SweetAlert if Bootstrap modal fails
+                fetchAndShowSwal(id);
+                return;
+            }
+            
+            modalLoading.style.display = 'block';
+            modalContent.style.display = 'none';
+            logDetailsModal.show();
+
+            try {
+                const response = await fetch(`{{ url('guard/logs') }}/${id}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    const data = result.data;
+                    document.getElementById('detailOwner').innerText = data.owner;
+                    document.getElementById('detailTag').innerText = `Tag: ${data.rfid_tag}`;
+                    document.getElementById('detailPlate').innerText = data.plate;
+                    document.getElementById('detailVehicle').innerText = data.vehicle_details;
+                    document.getElementById('detailTimestamp').innerText = data.timestamp;
+                    
+                    const typeEl = document.getElementById('detailType');
+                    typeEl.innerText = data.type;
+                    typeEl.className = 'badge';
+                    if (data.type === 'ENTRY') {
+                        typeEl.style.background = '#ecfdf5';
+                        typeEl.style.color = '#059669';
+                        typeEl.style.border = '1px solid #10b981';
+                    } else {
+                        typeEl.style.background = '#fef2f2';
+                        typeEl.style.color = '#dc2626';
+                        typeEl.style.border = '1px solid #ef4444';
+                    }
+
+                    modalLoading.style.display = 'none';
+                    modalContent.style.display = 'block';
+                }
+            } catch (e) {
+                console.error('Error fetching log details:', e);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Fetch Error',
+                    text: 'Could not retrieve activity details.',
+                    confirmButtonColor: '#1e293b'
+                });
+                logDetailsModal.hide();
+            }
+        }
+
+        async function fetchAndShowSwal(id) {
+            Swal.fire({
+                title: 'Loading...',
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            try {
+                const response = await fetch(`{{ url('guard/logs') }}/${id}`);
+                const result = await response.json();
+                if (result.success) {
+                    const data = result.data;
+                    Swal.fire({
+                        title: 'Activity Details',
+                        html: `
+                            <div style="text-align: left;">
+                                <strong>Owner:</strong> ${data.owner}<br>
+                                <strong>Plate:</strong> ${data.plate}<br>
+                                <strong>Type:</strong> ${data.type}<br>
+                                <strong>Vehicle:</strong> ${data.vehicle_details}<br>
+                                <strong>Time:</strong> ${data.timestamp}
+                            </div>
+                        `,
+                        confirmButtonColor: '#741b1b'
+                    });
+                }
+            } catch (e) {
+                Swal.fire('Error', 'Fetch failed', 'error');
+            }
+        }
     });
 
     let isLockdownActive = {{ $ldState['active'] ? 'true' : 'false' }};
@@ -837,6 +1322,8 @@
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes highlight { from { background: #f0f9ff; } to { background: transparent; } }
     .badge { padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+    .search-result-item:hover { background: #f8fafc; }
+    .clickable-plate:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 </style>
 @endsection
 @endsection

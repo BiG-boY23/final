@@ -20,6 +20,7 @@ done
 echo "[DB] Running migrations..."
 php artisan optimize:clear
 php artisan migrate --force
+php artisan storage:link --force
 
 echo "[LARAVEL] Optimizing caches..."
 php artisan config:cache
@@ -37,6 +38,7 @@ export PYTHONUNBUFFERED=1
 export LARAVEL_URL="http://127.0.0.1:${PORT:-8080}"
 # Ensure log directory exists and is writable
 touch /tmp/bridge.log
+export WS_PORT=8001
 python3 bridge_service.py >> /tmp/bridge.log 2>&1 &
 
 # ──────────────────────────────────────────────

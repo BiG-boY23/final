@@ -8,7 +8,9 @@ use Illuminate\Queue\SerializesModels;
 use App\Models\VehicleLog;
 use Carbon\Carbon;
 
-class WeeklyReportMail extends Mailable
+use Illuminate\Contracts\Queue\ShouldQueue;
+
+class WeeklyReportMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 

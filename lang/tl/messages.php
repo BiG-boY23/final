@@ -9,7 +9,7 @@ return [
     'total_exits' => 'KABUUANG PAGLABAS NGAYON',
     'active_users' => 'MGA AKTIBONG USER',
     'recent_activity' => 'Kamakailang Aktibidad ng Sasakyan',
-    'manual_entry' => 'Manu-manong Pagpasok',
+    'manual_entry' => 'Pagpasok ng Bisita',
     'visitor_entry' => 'Pagpasok ng Bisita',
     'visitor_exit' => 'Paglabas ng Bisita',
     'reports' => 'Mga Ulat',

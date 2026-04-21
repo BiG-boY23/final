@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartGate — Presentation & Feature Guide</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        :root {
+            --primary: #741b1b;
+            --secondary: #fdb913;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --bg-light: #f8fafc;
+            --border: #e2e8f0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+            background: #fff;
+            line-height: 1.6;
+            font-size: 11pt;
+        }
+
+        /* ── PRINT OPTIMIZATION ── */
+        @media print {
+            .no-print { display: none !important; }
+            body { font-size: 10pt; }
+            .page-break { page-break-before: always; }
+            section { page-break-inside: avoid; }
+            .card { border: 1px solid #eee !important; box-shadow: none !important; }
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 60px;
+        }
+
+        /* ── COVER ── */
+        .cover {
+            text-align: center;
+            padding: 100px 0 60px;
+            border-bottom: 4px solid var(--primary);
+            margin-bottom: 50px;
+        }
+        .cover .badge {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            font-size: 9pt;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 6px 16px;
+            border-radius: 4px;
+            margin-bottom: 24px;
+        }
+        .cover h1 {
+            font-size: 42pt;
+            font-weight: 800;
+            color: var(--primary);
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+        .cover .subtitle {
+            font-size: 14pt;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* ── HEADINGS ── */
+        h2 {
+            font-size: 18pt;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 40px 0 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+        h2 .icon { background: var(--bg-light); padding: 8px; border-radius: 8px; font-size: 1.2em; }
+        
+        h3 {
+            font-size: 13pt;
+            font-weight: 700;
+            color: var(--text-main);
+            margin: 25px 0 10px;
+        }
+
+        /* ── TABLES ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0 25px;
+        }
+        th {
+            background: var(--bg-light);
+            text-align: left;
+            padding: 12px;
+            font-weight: 800;
+            font-size: 9.5pt;
+            text-transform: uppercase;
+            color: var(--primary);
+            border-bottom: 2px solid var(--border);
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        tr:nth-child(even) { background: #fafafa; }
+
+        /* ── CARDS ── */
+        .card {
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        .card-title { font-weight: 800; color: var(--primary); margin-bottom: 8px; display: block; }
+
+        /* ── UTILS ── */
+        .highlight { color: var(--primary); font-weight: 700; }
+        .badge-status {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 8.5pt;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .bg-red { background: #fee2e2; color: #991b1b; }
+        .bg-gold { background: #fefce8; color: #854d0e; }
+        
+        .print-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+            transition: 0.2s;
+        }
+        .print-btn:hover { transform: translateY(-2px); }
+
+    </style>
+</head>
+<body>
+
+    <button class="print-btn no-print" onclick="window.print()">🖨️ Save as PDF / Print</button>
+
+    <div class="container">
+        
+        <!-- COVER -->
+        <div class="cover">
+            <div class="badge">Official Presentation Resource</div>
+            <h1>SmartGate</h1>
+            <p class="subtitle">University Campus Vehicle Access Control System<br>Demo & Feature Encyclopedia</p>
+        </div>
+
+        <!-- DASHBOARD SECTION -->
+        <h2><span class="icon">🖥️</span> Dashboard Functionality</h2>
+        <p>A breakdown of the "Command Center" views for Admin and Office roles.</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 35%;">Element on Screen</th>
+                    <th>Utility & Business Logic</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="highlight">Stats Grid</span></td>
+                    <td>Provides immediate visibility into total RFID inventory, active vehicles, and blocked users. Used for instantaneous security audits.</td>
+                </tr>
+                <tr>
+                    <td><span class="highlight">Occupancy Tracker</span></td>
+                    <td>A live progress bar monitoring current campus vehicles against a preset capacity limit. Helps security managed "Traffic Saturation."</td>
+                </tr>
+                <tr>
+                    <td><span class="highlight">System Diagnostics</span></td>
+                    <td>Monitors the connection health of the hardware (COM5). Displays "Online" status via background heartbeats to ensure the gates are functional.</td>
+                </tr>
+                <tr>
+                    <td><span class="highlight">Emergency Lockdown</span></td>
+                    <td>The "Nuclear Option." Halts all gate movement instantly. Requires a logged "Reason" to ensure accountability for the interruption.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- SIDEBAR MODULES -->
+        <div class="page-break"></div>
+        <h2><span class="icon">📂</span> System Modules (Sidebar)</h2>
+        <p>The operational modules categorized by user role.</p>
+
+        <h3>1. Administration & Management (Admin)</h3>
+        <table>
+            <thead>
+                <tr><th style="width: 35%;">Module</th><th>Functionality</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><span class="highlight">User Management</span></td><td>Control center for creating, auditing, and securing system accounts (Admin/Office/Guard).</td></tr>
+                <tr><td><span class="highlight">Fleet Asset Registry</span></td><td>Standardization of Brands and Models. Ensures "Clean Data" so reports don't have duplicate entries for the same car type.</td></tr>
+                <tr><td><span class="highlight">Academic Data</span></td><td>Registry for Colleges/Courses. Ensures student rolls are aligned with official university departments.</td></tr>
+                <tr><td><span class="highlight">Global Settings</span></td><td>Deep configuration for the system (Logos, Cooldown times, Warning Thresholds).</td></tr>
+            </tbody>
+        </table>
+
+        <h3>2. Registrations & Operations (Office)</h3>
+        <table>
+            <thead>
+                <tr><th style="width: 35%;">Module</th><th>Functionality</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><span class="highlight">Owner Registration</span></td><td>The intake portal. Handles new applications and features a "Notification Badge" for waiting online registrations.</td></tr>
+                <tr><td><span class="highlight">Issuance & Ledger</span></td><td>The financial hub. Records RFID payments and tracks the issuance status of physical stickers to applicants.</td></tr>
+                <tr><td><span class="highlight">Expiry Tracking</span></td><td>Maintenance module used to identify vehicles with near-expiry tags for proactive renewal notices.</td></tr>
+            </tbody>
+        </table>
+
+        <h3>3. Real-time Security (Guard)</h3>
+        <div class="card">
+            <span class="card-title">Guard Workspace & Visitor Management</span>
+            <p>The Guard role is focused on speed. The <strong>Workspace</strong> is a live, auto-refreshing log. The <strong>Visitor Management</strong> module replaces manual logbooks, allowing for fast entry and "One-Click" exit for guests.</p>
+        </div>
+
+        <!-- CORE STRENGTHS / TECH -->
+        <div class="page-break"></div>
+        <h2><span class="icon">🚀</span> Technical Excellence (Live Demo Script)</h2>
+        
+        <div class="card">
+            <span class="highlight">Scenario: The Double-Scan Security</span><br>
+            "In our system, assigning a tag requires a <strong>Double-Scan Verification</strong>. The first scan captures the ID (Yellow state), and the second scan confirms it (Green state). This prevents assigning the wrong tag due to nearby signal interference."
+        </div>
+
+        <div class="card">
+            <span class="highlight">Scenario: Offline Resilience</span><br>
+            "SmartGate is mission-critical. If the campus network fails, the <strong>Python Bridge</strong> stores scans locally. Once reconnected, it automatically syncs those 'missing' logs to the central database without human intervention."
+        </div>
+
+        <div class="card">
+            <span class="highlight">Scenario: System Lockdown</span><br>
+            "During an emergency, the Admin can toggle a <strong>Global Lockdown</strong>. This isn't just a UI change; it blocks the hardware processing and logs the specific reason into the <strong>Activity Historian</strong> for forensic review."
+        </div>
+
+        <!-- Q&A CHEAT SHEET -->
+        <h2><span class="icon">💬</span> Panelist Q&A Preparation</h2>
+        <table>
+            <thead>
+                <tr><th style="width: 40%;">Panelist Question</th><th>Your Professional Answer</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>"Why use a Python bridge instead of just PHP?"</td>
+                    <td>"PHP is for the web; Python is for hardware. The bridge allows for <strong>Low-Latency</strong> serial communication and <strong>Async Scans</strong> that no standard web server can handle on its own."</td>
+                </tr>
+                <tr>
+                    <td>"How is user data protected?"</td>
+                    <td>"We enforce <strong>2FA (Two-Factor Authentication)</strong> for administrative accounts and use <strong>Role-Based Access Control</strong>. A guard can log a car, but only an admin can view the system's financial ledger."</td>
+                </tr>
+                <tr>
+                    <td>"Is the system scalable?"</td>
+                    <td>"Yes. By using standardized <strong>Fleet Categories</strong> and a <strong>Relational Database</strong>, we can scale from a single gate to multiple gates across a multi-campus university."</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- FOOTER -->
+        <p style="text-align:center; color: var(--text-muted); margin-top: 50px; font-size: 8pt;">
+            Capstone 2026 — SmartGate Project — EVSU Ormoc — Prepared with Antigravity AI
+        </p>
+
+    </div>
+</body>
+</html>

@@ -36,11 +36,11 @@ class DashboardController extends Controller
                 'count' => $roleCounts['student'] ?? 0,
             ],
             'faculty' => [
-                'label' => 'Faculty',
+                'label' => 'Personnel',
                 'count' => $roleCounts['faculty'] ?? 0,
             ],
             'staff' => [
-                'label' => 'Non-Teaching',
+                'label' => 'Vendor',
                 'count' => $roleCounts['staff'] ?? 0,
             ],
         ];
@@ -59,38 +59,59 @@ class DashboardController extends Controller
     {
         $registration = null;
         if ($request->has('id')) {
-            $registration = VehicleRegistration::findOrFail($request->id);
+            $registration = VehicleRegistration::with('vehicles')->findOrFail($request->id);
         }
         $brands = \App\Models\VehicleBrand::with('models')->orderBy('name')->get();
         $categories = \App\Models\VehicleCategory::where('is_active', true)->orderBy('name')->get();
-        $colleges = \App\Models\College::with('courses')->orderBy('name')->get();
+        $colleges = \App\Models\College::where('category', 'academic')->with('courses')->orderBy('name')->get();
+        $offices = \App\Models\College::where('category', 'administrative')->orderBy('name')->get();
         
-        return view('office.registration', compact('registration', 'brands', 'categories', 'colleges'));
+        return view('office.registration', compact('registration', 'brands', 'categories', 'colleges', 'offices'));
     }
 
     public function store(Request $request)
     {
+        // 1. Bridge multi-vehicle data to root fields for standard validation
+        if (!$request->has('plate_number') && $request->has('vehicles')) {
+            $first = $request->vehicles[0];
+            $request->merge([
+                'vehicle_type' => $request->vehicle_type ?: ($first['vehicle_type'] ?? null),
+                'make_brand'   => $request->make_brand   ?: ($first['make_brand'] ?? null),
+                'model_name'   => $request->model_name   ?: ($first['model_name'] ?? null),
+                'plate_number' => $request->plate_number ?: ($first['plate_number'] ?? null),
+                'rfid_tag_id'  => $request->rfid_tag_id  ?: ($first['rfid_tag'] ?? null),
+            ]);
+        }
+
         $validator = Validator::make($request->all(), [
             'role' => 'required|in:student,faculty,staff',
             'first_name' => 'required|string|max:100',
             'last_name' => 'required|string|max:100',
             'middle_name' => 'nullable|string|max:100',
-            'contact_number' => 'required|string|max:20',
+            'contact_number' => $request->role === 'faculty' ? 'nullable|string|max:20' : 'required|string|max:20',
             'email_address' => 'nullable|email|max:255',
+            'university_id' => $request->role === 'faculty' ? 'nullable|string|max:255' : ($request->role === 'student' ? 'required|string|max:255' : 'nullable'),
             'vehicle_type' => 'required|string|max:100', 
             'make_brand' => 'required|string|max:255',
             'model_name' => 'required|string|max:255',
             'plate_number' => 'required|string|max:20',
-            'validity_from' => 'required|date',
-            'validity_to' => 'required|date',
-            'rfid_tag_id' => 'required|string|unique:vehicle_registrations,rfid_tag_id',
+            'validity_from' => 'nullable|date',
+            'validity_to' => 'nullable|date',
+            'rfid_tag_id' => [
+                'required',
+                'string',
+                'unique:vehicle_registrations,rfid_tag_id',
+                'unique:vehicles,rfid_tag'
+            ],
         ]);
 
         if ($validator->fails()) {
             if ($request->expectsJson() || $request->ajax() || $request->hasHeader('X-Requested-With')) {
+                // Get the first specific error message
+                $firstError = $validator->errors()->first();
                 return response()->json([
                     'success' => false,
-                    'message' => 'Please check the required fields and tag uniqueness.',
+                    'message' => 'Validation Error: ' . $firstError,
                     'errors' => $validator->errors()
                 ], 422);
             }
@@ -101,28 +122,38 @@ class DashboardController extends Controller
 
         $fullName = trim($request->first_name . ' ' . ($request->middle_name ? $request->middle_name . ' ' : '') . $request->last_name);
         
-        $data = [
-            'role'              => $request->role,
-            'first_name'        => $request->first_name,
-            'last_name'         => $request->last_name,
-            'middle_name'       => $request->middle_name,
-            'full_name'         => $fullName,
-            'contact_number'    => $request->contact_number,
-            'email_address'     => $request->email_address ?? 'N/A',
-            'vehicle_type'      => $request->vehicle_type,
-            'make_brand'        => $request->make_brand,
-            'model_name'        => $request->model_name,
-            'model_year'        => $request->model_year ?? 'N/A',
-            'color'             => $request->color ?? 'N/A',
-            'plate_number'      => $request->plate_number,
-            'registered_owner'  => $request->registered_owner ?? $fullName,
-            'validity_from'     => $request->validity_from,
-            'validity_to'       => $request->validity_to,
-            'rfid_tag_id'       => $request->rfid_tag_id,
-            'status'            => 'approved',
-            'office_user_id'    => Auth::id(),
-            'sticker_classification' => [$request->role],
-        ];
+        // Extract vehicles info from array or single fields (fallback)
+        $vehicles = $request->vehicles ?? [[
+            'vehicle_type' => $request->vehicle_type,
+            'make_brand'   => $request->make_brand,
+            'model_name'   => $request->model_name,
+            'plate_number' => $request->plate_number,
+            'rfid_tag'     => $request->rfid_tag_id,
+        ]];
+
+        $firstVehicle = $vehicles[0] ?? [];
+
+            $vPeriod = (int)\App\Models\SystemSetting::get('validity_period', 1);
+            $data = [
+                'role'              => $request->role,
+                'first_name'        => $request->first_name,
+                'last_name'         => $request->last_name,
+                'middle_name'       => $request->middle_name,
+                'full_name'         => $fullName,
+                'contact_number'    => $request->contact_number,
+                'email_address'     => $request->email_address ?? 'N/A',
+                'vehicle_type'      => $firstVehicle['vehicle_type'] ?? 'N/A',
+                'make_brand'        => $firstVehicle['make_brand'] ?? 'N/A',
+                'model_name'        => $firstVehicle['model_name'] ?? 'N/A',
+                'plate_number'      => $firstVehicle['plate_number'] ?? 'N/A',
+                'registered_owner'  => $request->registered_owner ?? $fullName,
+                'validity_from'     => $request->validity_from ?: now()->toDateString(),
+                'validity_to'       => $request->validity_to ?: now()->addYears($vPeriod)->toDateString(),
+                'rfid_tag_id'       => $firstVehicle['rfid_tag'] ?? null,
+                'status'            => 'approved',
+                'office_user_id'    => Auth::id(),
+                'sticker_classification' => [$request->role],
+            ];
 
         // Role-based specific mappings
         if ($request->role === 'student') {
@@ -142,30 +173,34 @@ class DashboardController extends Controller
 
         $registration = VehicleRegistration::create($data);
 
-        // Record payment and create Vehicle entry for automatic tag assignment
-        if ($registration->rfid_tag_id) {
-            // 1. Create Payment record
-            $rfid_fee = (float)\App\Models\SystemSetting::get('rfid_fee', 100);
-            \App\Models\Payment::create([
-                'vehicle_registration_id' => $registration->id,
-                'amount' => $rfid_fee,
-                'or_number' => 'REG-' . strtoupper(bin2hex(random_bytes(4))), // Auto-gen unique OR for office direct reg
-                'paid_at' => now()
-            ]);
+        // Process all vehicles in the array
+        foreach ($vehicles as $vData) {
+            if (empty($vData['plate_number'])) continue;
 
-            // 2. Create Vehicle record (This is what displays in the Registered Accounts list)
+            // 1. Create Vehicle record (Gate Access)
             \App\Models\Vehicle::create([
                 'user_id'         => $registration->id,
-                'plate_number'    => $registration->plate_number,
-                'vehicle_details' => trim(($registration->make_brand ?? '') . ' ' . ($registration->model_name ?? '')),
-                'vehicle_type'    => $registration->vehicle_type,
-                'rfid_tag'        => $registration->rfid_tag_id,
+                'plate_number'    => strtoupper($vData['plate_number']),
+                'vehicle_details' => trim(($vData['make_brand'] ?? '') . ' ' . ($vData['model_name'] ?? '')),
+                'vehicle_type'    => $vData['vehicle_type'],
+                'rfid_tag'        => $vData['rfid_tag'],
                 'expiry_date'     => $registration->validity_to,
             ]);
 
-            // 3. Mark as ACTIVE
-            $registration->update(['status' => 'ACTIVE']);
+            // 2. Record payment if tag is assigned
+            if (!empty($vData['rfid_tag'])) {
+                $rfid_fee = (float)\App\Models\SystemSetting::get('rfid_fee', 100);
+                \App\Models\Payment::create([
+                    'vehicle_registration_id' => $registration->id,
+                    'amount' => $rfid_fee,
+                    'or_number' => 'REG-' . strtoupper(bin2hex(random_bytes(4))),
+                    'paid_at' => now()
+                ]);
+            }
         }
+
+        // Mark as ACTIVE
+        $registration->update(['status' => 'ACTIVE']);
 
         if ($request->expectsJson() || $request->ajax() || $request->hasHeader('X-Requested-With')) {
             return response()->json([
@@ -185,13 +220,13 @@ class DashboardController extends Controller
         $totalUsers = $registrations->count();
         $activeTags = $registrations->whereNotNull('rfid_tag_id')->count();
         $pendingReg = $registrations->where('status', 'pending')->count();
-        $verifiedReg = $registrations->where('status', 'verified')->count();
+        $verifiedReg = $registrations->where('status', 'verified')->whereNull('rfid_tag_id')->count();
 
         $roleCounts = $registrations->groupBy('role')->map->count();
         $summary = [
             'student' => ['label' => 'Students', 'count' => $roleCounts['student'] ?? 0],
-            'faculty' => ['label' => 'Faculty', 'count' => $roleCounts['faculty'] ?? 0],
-            'staff' => ['label' => 'Non-Teaching', 'count' => $roleCounts['staff'] ?? 0],
+            'faculty' => ['label' => 'Personnel', 'count' => $roleCounts['faculty'] ?? 0],
+            'staff' => ['label' => 'Vendor', 'count' => $roleCounts['staff'] ?? 0],
         ];
         foreach ($summary as $key => $item) {
             $summary[$key]['percent'] = $totalUsers > 0 ? round(($item['count'] / $totalUsers) * 100) : 0;
@@ -212,26 +247,54 @@ class DashboardController extends Controller
         return response()->json(['success' => true, 'data' => $registration]);
     }
 
-    /**
-     * Fetch user record by university_id for auto-population.
-     */
-    public function fetchUserByUnivId($univId)
+    public function fetchUserByUnivId($searchValue)
     {
-        $registration = VehicleRegistration::where('university_id', $univId)
+        // 1. Try to find by University ID
+        $registration = VehicleRegistration::with('vehicles')
+            ->where('university_id', $searchValue)
             ->latest()
             ->first();
 
-        if ($registration) {
-            return response()->json([
-                'success' => true,
-                'data' => $registration
-            ]);
+        // 2. If not found, try to find by Plate Number
+        if (!$registration) {
+            $vehicle = \App\Models\Vehicle::where('plate_number', $searchValue)->first();
+            if ($vehicle) {
+                $registration = VehicleRegistration::with('vehicles')
+                    ->where('id', $vehicle->user_id)
+                    ->latest()
+                    ->first();
+            }
         }
 
+        if (!$registration) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No prior registration found for this ID or Plate Number.'
+            ], 404);
+        }
+
+        // If we have an owner, we want to fetch ALL vehicles linked to them.
+        // We can find them either by university_id (if exists) or just by the owner id records.
+        $allVehicles = collect();
+        if ($registration->university_id && $registration->university_id !== 'N/A') {
+            $allRegIds = VehicleRegistration::where('university_id', $registration->university_id)->pluck('id');
+            $allVehicles = \App\Models\Vehicle::whereIn('user_id', $allRegIds)->get();
+        } else {
+            // Find by owner name matching? No, let's just stick to the specific owner's records we found
+            // Actually, if they have no university_id, we just fetch vehicles matching the same owner name/details or just this registration's vehicles.
+            // For now, let's fetch all vehicles across all registrations with the same full_name and contact_number
+            $allRegIds = VehicleRegistration::where('full_name', $registration->full_name)
+                ->where('contact_number', $registration->contact_number)
+                ->pluck('id');
+            $allVehicles = \App\Models\Vehicle::whereIn('user_id', $allRegIds)->get();
+        }
+
+        $registration->setRelation('vehicles', $allVehicles);
+
         return response()->json([
-            'success' => false,
-            'message' => 'No prior registration found for this ID.'
-        ], 404);
+            'success' => true,
+            'data'    => $registration,
+        ]);
     }
 
     /**
@@ -241,6 +304,18 @@ class DashboardController extends Controller
     {
         $registration = VehicleRegistration::findOrFail($id);
 
+        // 1. Bridge multi-vehicle data to root fields for standard validation
+        if (!$request->has('plate_number') && $request->has('vehicles')) {
+            $first = $request->vehicles[0];
+            $request->merge([
+                'vehicle_type' => $request->vehicle_type ?? ($first['vehicle_type'] ?? null),
+                'make_brand'   => $request->make_brand   ?? ($first['make_brand'] ?? null),
+                'model_name'   => $request->model_name   ?? ($first['model_name'] ?? null),
+                'plate_number' => $request->plate_number ?? ($first['plate_number'] ?? null),
+                'rfid_tag_id'  => $request->rfid_tag_id  ?? ($first['rfid_tag'] ?? null),
+            ]);
+        }
+
         $validator = Validator::make($request->all(), [
             'role' => 'required|in:student,faculty,staff',
             'first_name' => 'nullable|string|max:100',
@@ -249,15 +324,28 @@ class DashboardController extends Controller
             'full_name' => 'nullable|string|max:255',
             'university_id' => 'nullable|string|max:255',
             'college_dept' => 'nullable|string|max:255',
-            'contact_number' => 'required|string|max:20',
+            'contact_number' => $request->role === 'faculty' ? 'nullable|string|max:20' : 'required|string|max:20',
             'email_address' => 'nullable|email|max:255',
-            'vehicle_type' => 'required|string|max:100', // dynamic category
-            'make_brand' => 'required|string|max:255',
+            'vehicle_type' => 'nullable|string|max:100', 
+            'make_brand' => 'nullable|string|max:255',
             'model_name' => 'nullable|string|max:255',
-            'plate_number' => 'required|string|max:20',
-            'validity_from' => 'required|date',
-            'validity_to' => 'required|date|after:validityFrom',
-            'rfid_tag_id' => 'required|string|unique:vehicle_registrations,rfid_tag_id,' . $registration->id,
+            'plate_number' => 'nullable|string|max:20',
+            'validity_from' => 'nullable|date',
+            'validity_to' => 'nullable|date',
+            'rfid_tag_id' => [
+                'nullable',
+                'string',
+                'unique:vehicle_registrations,rfid_tag_id,' . $id,
+                function($attribute, $value, $fail) use ($id) {
+                    // Check vehicles table, excluding vehicles owned by this registration
+                    $exists = \App\Models\Vehicle::where('rfid_tag', $value)
+                        ->where('user_id', '!=', $id)
+                        ->exists();
+                    if ($exists) {
+                        $fail('The selected RFID tag is already assigned to another vehicle.');
+                    }
+                }
+            ],
         ]);
 
         if ($validator->fails()) {
@@ -278,6 +366,19 @@ class DashboardController extends Controller
             $fullName = preg_replace('/\s+/', ' ', $fullName);
         }
 
+        // Extract vehicles from array or root fallback
+        $vehicles = $request->vehicles ?? [[
+            'id'           => $registration->vehicles()->first()->id ?? null,
+            'vehicle_type' => $request->vehicle_type,
+            'make_brand'   => $request->make_brand,
+            'model_name'   => $request->model_name,
+            'plate_number' => $request->plate_number,
+            'rfid_tag'     => $request->rfid_tag_id,
+        ]];
+        
+        $firstVehicle = $vehicles[0] ?? [];
+
+        $vPeriod = (int)\App\Models\SystemSetting::get('validity_period', 1);
         $data = [
             'role' => $request->role,
             'first_name' => $request->first_name,
@@ -294,19 +395,19 @@ class DashboardController extends Controller
             'office' => $request->office,
             'business_stall_name' => $request->business_stall_name,
             'vendor_address' => $request->vendor_address,
-            'vehicle_type' => $request->vehicle_type,
+            'vehicle_type' => $firstVehicle['vehicle_type'] ?? $registration->vehicle_type,
             'registered_owner' => $request->registered_owner ?? 'N/A',
-            'make_brand' => $request->make_brand,
-            'model_name' => $request->model_name,
+            'make_brand' => $firstVehicle['make_brand'] ?? $registration->make_brand,
+            'model_name' => $firstVehicle['model_name'] ?? $registration->model_name,
             'model_year' => $request->model_year ?? 'N/A',
             'color' => $request->color ?? 'N/A',
-            'plate_number' => $request->plate_number,
+            'plate_number' => $firstVehicle['plate_number'] ?? $registration->plate_number,
             'engine_number' => $request->engine_number ?? 'N/A',
             'sticker_classification' => $request->stickerClassification ?? [],
             'requirements' => $request->requirements ?? [],
-            'validity_from' => $request->validity_from,
-            'validity_to' => $request->validity_to,
-            'rfid_tag_id' => $request->rfid_tag_id,
+            'validity_from' => $request->validity_from ?: now()->toDateString(),
+            'validity_to' => $request->validity_to ?: now()->addYears($vPeriod)->toDateString(),
+            'rfid_tag_id' => $firstVehicle['rfid_tag'] ?? $registration->rfid_tag_id,
             'status' => ($registration->status === 'expired' && Carbon::parse($request->validity_to)->isFuture()) ? 'approved' : $registration->status,
             'office_user_id' => Auth::id(),
         ];
@@ -315,7 +416,50 @@ class DashboardController extends Controller
         $registration->update($data);
         $isTagged = !empty($registration->rfid_tag_id);
 
-        // Record payment if newly tagged
+        // SYNC Multi-Vehicles
+        $submittedIds = [];
+        foreach ($vehicles as $vData) {
+            if (empty($vData['plate_number'])) continue;
+
+            $vRecord = null;
+            if (!empty($vData['id'])) {
+                $vRecord = \App\Models\Vehicle::find($vData['id']);
+            }
+
+            $updateData = [
+                'user_id'         => $registration->id,
+                'plate_number'    => strtoupper($vData['plate_number']),
+                'vehicle_details' => trim(($vData['make_brand'] ?? '') . ' ' . ($vData['model_name'] ?? '')),
+                'vehicle_type'    => $vData['vehicle_type'],
+                'rfid_tag'        => $vData['rfid_tag'],
+                'expiry_date'     => $registration->validity_to,
+            ];
+
+            if ($vRecord) {
+                $vRecord->update($updateData);
+                $submittedIds[] = $vRecord->id;
+            } else {
+                $newV = \App\Models\Vehicle::create($updateData);
+                $submittedIds[] = $newV->id;
+            }
+        }
+
+        // Cleanup: Delete vehicles that were NOT in the submission (removed by user in UI)
+        // We find all registration IDs linked to this owner to ensure we clean up orphans correctly
+        $relatedRegIds = [$registration->id];
+        if ($registration->university_id && $registration->university_id !== 'N/A') {
+            $relatedRegIds = \App\Models\VehicleRegistration::where('university_id', $registration->university_id)->pluck('id')->toArray();
+        } else {
+            $relatedRegIds = \App\Models\VehicleRegistration::where('full_name', $registration->full_name)
+                ->where('contact_number', $registration->contact_number)
+                ->pluck('id')->toArray();
+        }
+
+        \App\Models\Vehicle::whereIn('user_id', $relatedRegIds)
+            ->whereNotIn('id', $submittedIds)
+            ->delete();
+
+        // Record payment for any NEW tags found (simplified: track if count increased or tag changed)
         if (!$wasTagged && $isTagged) {
             $rfid_fee = (float)\App\Models\SystemSetting::get('rfid_fee', 100);
             \App\Models\Payment::create([
@@ -329,13 +473,61 @@ class DashboardController extends Controller
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Registration updated successfully.',
+                'message' => 'Registration updated and gate access synchronized.',
                 'data' => $registration,
             ]);
         }
 
         return redirect()->route('office.registration', ['id' => $registration->id])
-            ->with('success', 'Registration updated successfully.');
+            ->with('success', 'Registration updated and gate access synchronized.');
+    }
+
+    /**
+     * One-Click Renewal Logic from Stats Dashboard
+     */
+    public function renewTag(Request $request, $id)
+    {
+        $registration = VehicleRegistration::findOrFail($id);
+        
+        $request->validate([
+            'new_expiry' => 'nullable|date'
+        ]);
+
+        $currentExpiry = Carbon::parse($registration->validity_to);
+        
+        // If provided, use manual date; otherwise, add 1 year to current expiry (or now if already expired)
+        if ($request->new_expiry) {
+            $newExpiryDate = Carbon::parse($request->new_expiry);
+        } else {
+            $baseDate = $currentExpiry->isFuture() ? $currentExpiry : now();
+            $newExpiryDate = $baseDate->addYear();
+        }
+
+        // 1. Update Registration Record
+        $registration->update([
+            'validity_to' => $newExpiryDate->toDateString(),
+            'status'      => 'ACTIVE'
+        ]);
+
+        // 2. Sync Vehicle Records (Gate Hardware Logic)
+        \App\Models\Vehicle::where('user_id', $registration->id)->update([
+            'expiry_date' => $newExpiryDate->toDateString()
+        ]);
+
+        // 3. Record Renewal Payment
+        $renewalFee = (float)\App\Models\SystemSetting::get('rfid_fee', 100);
+        \App\Models\Payment::create([
+            'vehicle_registration_id' => $registration->id,
+            'amount' => $renewalFee,
+            'or_number' => 'RENEW-' . strtoupper(bin2hex(random_bytes(4))),
+            'paid_at' => now()
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Registration renewed and gate access synchronized successfully!',
+            'new_date' => $newExpiryDate->format('M d, Y')
+        ]);
     }
 
     /**
@@ -415,52 +607,100 @@ class DashboardController extends Controller
     }
     public function verify($id)
     {
-        $registration = VehicleRegistration::findOrFail($id);
-        
-        if ($registration->status !== 'pending') {
+        return \DB::transaction(function () use ($id) {
+            $registration = VehicleRegistration::lockForUpdate()->findOrFail($id);
+            
+            // If already verified, we allow it to proceed to re-send the email if needed, 
+            // but we stop if it's rejected or something else.
+            if ($registration->status !== 'pending' && $registration->status !== 'verified') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This registration is already ' . $registration->status . '.'
+                ], 400);
+            }
+
+            if ($registration->status === 'pending') {
+                $registration->update(['status' => 'verified']);
+                
+                // Log the review
+                \App\Models\RegistrationReview::create([
+                    'vehicle_registration_id' => $registration->id,
+                    'admin_id' => Auth::id(),
+                    'action' => 'approved',
+                    'admin_notes' => 'Requirements verified and approved.',
+                    'reviewed_at' => now(),
+                ]);
+            }
+     
+            // Send Email
+            if ($registration->email_address && filter_var($registration->email_address, FILTER_VALIDATE_EMAIL)) {
+                try {
+                    // Increase timeout for slow SMTP connections
+                    set_time_limit(180);
+                    
+                    \Illuminate\Support\Facades\Mail::to($registration->email_address)
+                        ->send(new \App\Mail\RegistrationVerified($registration));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Failed to send verification email to {$registration->email_address}: " . $e->getMessage());
+                }
+            }
+
             return response()->json([
-                'success' => false,
-                'message' => 'This registration is already ' . $registration->status . '.'
-            ], 400);
-        }
-
-        $registration->update(['status' => 'verified']);
-
-        // Send Email
-        if ($registration->email_address && filter_var($registration->email_address, FILTER_VALIDATE_EMAIL)) {
-            \Illuminate\Support\Facades\Mail::to($registration->email_address)
-                ->send(new \App\Mail\RegistrationVerified($registration));
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Registration verified! An email has been sent to the applicant.'
-        ]);
+                'success' => true,
+                'message' => 'Registration verified! An email notification has been dispatched.'
+            ]);
+        });
     }
 
     public function reject(Request $request, $id)
     {
-        $registration = VehicleRegistration::findOrFail($id);
-        
-        $request->validate([
-            'reason' => 'required|string|max:500'
-        ]);
+        return \DB::transaction(function () use ($request, $id) {
+            $registration = VehicleRegistration::lockForUpdate()->findOrFail($id);
+            
+            $request->validate([
+                'reason' => 'required|string|max:500'
+            ]);
 
-        $registration->update([
-            'status' => 'rejected',
-            'rejection_reason' => $request->reason
-        ]);
+            // Allow re-rejecting if it was already rejected (maybe to update reason or re-send mail)
+            if ($registration->status !== 'pending' && $registration->status !== 'rejected') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This registration is already ' . $registration->status . '.'
+                ], 400);
+            }
 
-        // Send Email
-        if ($registration->email_address && filter_var($registration->email_address, FILTER_VALIDATE_EMAIL)) {
-            \Illuminate\Support\Facades\Mail::to($registration->email_address)
-                ->send(new \App\Mail\RegistrationRejected($registration));
-        }
+            $registration->update([
+                'status' => 'rejected',
+                'rejection_reason' => $request->reason
+            ]);
+     
+            // Log the review
+            \App\Models\RegistrationReview::create([
+                'vehicle_registration_id' => $registration->id,
+                'admin_id' => Auth::id(),
+                'action' => 'rejected',
+                'admin_notes' => $request->reason,
+                'reviewed_at' => now(),
+            ]);
+     
+            // Send Email
+            if ($registration->email_address && filter_var($registration->email_address, FILTER_VALIDATE_EMAIL)) {
+                try {
+                    // Increase timeout for slow SMTP connections
+                    set_time_limit(180);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Registration rejected and applicant notified.'
-        ]);
+                    \Illuminate\Support\Facades\Mail::to($registration->email_address)
+                        ->send(new \App\Mail\RegistrationRejected($registration));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Failed to send rejection email to {$registration->email_address}: " . $e->getMessage());
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Registration rejected and notification dispatched.'
+            ]);
+        });
     }
 
     public function validateStoredDocument($id, $type)
@@ -515,10 +755,10 @@ class DashboardController extends Controller
     public function startBridge()
     {
         $port       = 8080;
-        $scriptPath = realpath(base_path('../bridge_service.py'));
+        $scriptPath = base_path('bridge_service.py');
 
         // 1. Check if the port is already open (bridge already running)
-        $connection = @fsockopen('127.0.0.1', $port, $errno, $errstr, 1);
+        $connection = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.5);
         if ($connection) {
             fclose($connection);
             return response()->json([
@@ -564,12 +804,53 @@ class DashboardController extends Controller
         ], 202);
     }
 
+    /**
+     * Terminate the bridge service.
+     */
+    public function stopBridge()
+    {
+        $port = 8080;
+        $success = false;
+
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            // Windows logic to find PID and kill it
+            $output = shell_exec("netstat -ano | findstr :$port");
+            if ($output) {
+                $lines = explode("\n", trim($output));
+                foreach ($lines as $line) {
+                    if (strpos($line, 'LISTENING') !== false) {
+                        $parts = preg_split('/\s+/', trim($line));
+                        $pid = end($parts);
+                        if (is_numeric($pid)) {
+                            shell_exec("taskkill /F /PID $pid");
+                            $success = true;
+                        }
+                    }
+                }
+            }
+        } else {
+            // Linux/Unix
+            $output = shell_exec("fuser -k $port/tcp 2>&1");
+            $success = true;
+        }
+
+        if ($success) {
+            return response()->json(['success' => true, 'message' => 'RFID Bridge stopped successfully.']);
+        }
+        
+        return response()->json(['success' => false, 'message' => 'RFID Bridge was not running.']);
+    }
+
     public function bridgeStatus()
     {
-        $connection = @fsockopen('127.0.0.1', 8080, $errno, $errstr, 1);
-        if ($connection) {
-            fclose($connection);
-            return response()->json(['online' => true]);
+        // NO MORE SOCKET PROBING: Check Cache populated by heartbeat
+        $lastHeartbeat = Cache::get('bridge_last_heartbeat');
+        if ($lastHeartbeat) {
+            return response()->json([
+                'online' => true,
+                'last_seen' => Carbon::parse($lastHeartbeat)->diffForHumans(),
+                'port' => Cache::get('bridge_com_port', 'Unknown')
+            ]);
         }
         return response()->json(['online' => false]);
     }
@@ -581,6 +862,12 @@ class DashboardController extends Controller
         $pieData = [
             'outer' => [], // Roles
             'inner' => []  // Vehicle Types
+        ];
+
+        $roleLabels = [
+            'student' => 'Student',
+            'faculty' => 'Personnel',
+            'staff' => 'Vendor',
         ];
 
         foreach ($roles as $role) {
@@ -604,9 +891,10 @@ class DashboardController extends Controller
                     ->get()
             ];
 
-            $pieData['outer'][] = ['label' => ucfirst($role), 'value' => $ownerCount];
+            $label = $roleLabels[$role] ?? ucfirst($role);
+            $pieData['outer'][] = ['label' => $label, 'value' => $ownerCount];
             foreach($vTypes as $type => $count) {
-                $pieData['inner'][] = ['label' => ucfirst($role) . ' ' . ucfirst($type), 'value' => $count];
+                $pieData['inner'][] = ['label' => $label . ' ' . ucfirst($type), 'value' => $count];
             }
         }
 
@@ -662,16 +950,18 @@ class DashboardController extends Controller
 
     public function expiry()
     {
-        $now = now();
-        $expired = VehicleRegistration::where('validity_to', '<', $now->toDateString())->count();
-        $critical = VehicleRegistration::where('validity_to', '>', $now->toDateString())
-            ->where('validity_to', '<=', now()->addDays(15)->toDateString())->count();
-        
         $activeRegistrations = VehicleRegistration::whereNotNull('rfid_tag_id')
             ->orderBy('validity_to', 'asc')
             ->get();
 
-        $healthy = $activeRegistrations->where('validity_to', '>', now()->addDays(15)->toDateString())->count();
+        $today = now()->startOfDay();
+        $target = now()->addDays(30)->endOfDay();
+        
+        $expired = $activeRegistrations->filter(fn($reg) => Carbon::parse($reg->validity_to)->isBefore($today))->count();
+        $critical = $activeRegistrations->filter(fn($reg) => 
+            Carbon::parse($reg->validity_to)->isBetween($today, $target)
+        )->count();
+        $healthy = $activeRegistrations->filter(fn($reg) => Carbon::parse($reg->validity_to)->isAfter($target))->count();
             
         $total = $activeRegistrations->count();
         $expiredPerc = $total > 0 ? round(($expired / $total) * 100) : 0;
@@ -684,7 +974,7 @@ class DashboardController extends Controller
     public function sendExpiryAlerts()
     {
         $now = now();
-        $target = now()->addDays(15);
+        $target = now()->addDays(30);
         
         $registrations = \App\Models\VehicleRegistration::whereNotNull('email_address')
             ->where('status', 'ACTIVE')
@@ -727,13 +1017,23 @@ class DashboardController extends Controller
             ->first();
         $peakActivityDay = $peakDayRaw ? Carbon::parse($peakDayRaw->date)->format('M d, Y') : 'N/A';
 
-        // 3. Most Frequent Role
-        $mostFreqRoleRaw = (clone $logsQuery)->join('vehicle_registrations', 'vehicle_logs.vehicle_registration_id', '=', 'vehicle_registrations.id')
-            ->select(\DB::raw('vehicle_registrations.role, count(*) as total'))
+        // 3. Most Active Role
+        $mostFreqRoleRaw = (clone $logsQuery)
+            ->join('vehicle_registrations', 'vehicle_logs.vehicle_registration_id', '=', 'vehicle_registrations.id')
+            ->select('vehicle_registrations.role', \DB::raw('count(*) as total'))
             ->groupBy('vehicle_registrations.role')
             ->orderByDesc('total')
             ->first();
-        $mostFrequentRole = $mostFreqRoleRaw ? ucfirst($mostFreqRoleRaw->role) : 'N/A';
+
+        $roleLabels = [
+            'student' => 'Student',
+            'faculty' => 'Personnel',
+            'staff' => 'Vendor',
+        ];
+        $mostFrequentRole = 'N/A';
+        if ($mostFreqRoleRaw) {
+            $mostFrequentRole = $roleLabels[$mostFreqRoleRaw->role] ?? ucfirst($mostFreqRoleRaw->role);
+        }
 
         // 4. Average Scans per Day
         $diffDays = Carbon::parse($start)->diffInDays(Carbon::parse($end)) + 1;
@@ -857,7 +1157,12 @@ class DashboardController extends Controller
             ->when($q, function($query) use ($q) {
                 $query->where(function($sub) use ($q) {
                     $sub->where('full_name', 'like', "%{$q}%")
-                        ->orWhere('university_id', 'like', "%{$q}%");
+                        ->orWhere('university_id', 'like', "%{$q}%")
+                        ->orWhere('plate_number', 'like', "%{$q}%")
+                        ->orWhere('college_dept', 'like', "%{$q}%")
+                        ->orWhereHas('vehicles', function($v) use ($q) {
+                            $v->where('plate_number', 'like', "%{$q}%");
+                        });
                 });
             })
             ->when($role && $role !== 'all', function($query) use ($role) {
@@ -881,7 +1186,11 @@ class DashboardController extends Controller
             return [
                 'id' => $owner->id,
                 'name' => $owner->full_name,
-                'role' => ucfirst($owner->role),
+                'role' => [
+                    'student' => 'Student',
+                    'faculty' => 'Personnel',
+                    'staff' => 'Vendor',
+                ][$owner->role] ?? ucfirst($owner->role),
                 'vehicles' => $owner->vehicles_count,
                 'activity' => $total,
                 'entries' => $entries,
@@ -962,7 +1271,11 @@ class DashboardController extends Controller
             'success' => true,
             'owner' => [
                 'name' => $owner->full_name,
-                'role' => ucfirst($owner->role),
+                'role' => [
+                    'student' => 'Student',
+                    'faculty' => 'Personnel',
+                    'staff' => 'Vendor',
+                ][$owner->role] ?? ucfirst($owner->role),
                 'joined' => $owner->created_at->format('M Y'),
                 'vehicles_count' => $owner->vehicles->count()
             ],
@@ -976,6 +1289,63 @@ class DashboardController extends Controller
                 'latest_logs' => $latestLogs
             ]
         ]);
+    }
+
+    public function globalSearch(Request $request)
+    {
+        $q = $request->query('q');
+        if (!$q || strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        $results = VehicleRegistration::with('vehicles')
+            ->where(function($query) use ($q) {
+                $query->where('full_name', 'like', "%{$q}%")
+                    ->orWhere('university_id', 'like', "%{$q}%")
+                    ->orWhere('rfid_tag_id', 'like', "%{$q}%")
+                    ->orWhere('plate_number', 'like', "%{$q}%")
+                    ->orWhereHas('vehicles', function($v) use ($q) {
+                        $v->where('plate_number', 'like', "%{$q}%")
+                          ->orWhere('rfid_tag', 'like', "%{$q}%");
+                    });
+            })
+            ->limit(10)
+            ->get()
+            ->map(function($reg) {
+                $roleLabels = [
+                    'student' => 'Student',
+                    'faculty' => 'Faculty',
+                    'staff' => 'Non-Teaching',
+                ];
+                
+                $plates = [$reg->plate_number];
+                foreach($reg->vehicles as $v) {
+                    $plates[] = $v->plate_number;
+                }
+                $plates = array_unique(array_filter($plates));
+
+                // Context-aware routing
+                $userRole = auth()->user()->role;
+                $url = '#';
+                
+                if ($userRole === 'admin') {
+                    $url = route('admin.rfid.show', $reg->id);
+                } elseif ($userRole === 'office') {
+                    $url = route('office.registration.show', $reg->id);
+                }
+
+                return [
+                    'id' => $reg->id,
+                    'name' => $reg->full_name,
+                    'role' => $roleLabels[$reg->role] ?? ucfirst($reg->role),
+                    'university_id' => $reg->university_id,
+                    'plates' => $plates,
+                    'status' => $reg->status,
+                    'url' => $url
+                ];
+            });
+
+        return response()->json($results);
     }
 
     /**

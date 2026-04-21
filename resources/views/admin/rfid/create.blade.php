@@ -31,12 +31,12 @@
                     <label class="role-option">
                         <input type="radio" name="role" value="faculty">
                         <div class="radio-custom"></div>
-                        <span>Faculty</span>
+                        <span>Personnel</span>
                     </label>
                     <label class="role-option">
                         <input type="radio" name="role" value="staff">
                         <div class="radio-custom"></div>
-                        <span>Non-Teaching</span>
+                        <span>Vendor</span>
                     </label>
                 </div>
             </div>
@@ -67,12 +67,12 @@
                         <input type="text" name="middle_name" placeholder="Middle Name">
                     </div>
                     <div class="form-field">
-                        <label class="field-label">CONTACT NUMBER</label>
-                        <input type="text" name="contact_number" placeholder="09XXXXXXXXX" required>
+                        <label id="contact-label" class="field-label">CONTACT NUMBER <span style="color:red">*</span></label>
+                        <input type="text" name="contact_number" id="contact-input" placeholder="09XXXXXXXXX" required>
                     </div>
                     <div class="form-field md-col-2">
-                        <label class="field-label">EMAIL ADDRESS</label>
-                        <input type="email" name="email_address" placeholder="email@example.com" required>
+                        <label id="email-label" class="field-label">EMAIL ADDRESS <span style="color:red">*</span></label>
+                        <input type="email" name="email_address" id="email-input" placeholder="email@example.com" required>
                     </div>
                 </div>
 
@@ -108,6 +108,7 @@
                                 <option value="" disabled selected>Select Category First...</option>
                             </select>
                         </div>
+                        <input type="text" id="brand-other-input" placeholder="Type Brand Name..." class="mt-2" style="display: none; width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 8px;">
                     </div>
 
                     <div class="form-field">
@@ -117,6 +118,7 @@
                                 <option value="" disabled selected>Select Brand First...</option>
                             </select>
                         </div>
+                        <input type="text" id="model-other-input" placeholder="Type Model Name..." class="mt-2" style="display: none; width: 100%; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 8px;">
                     </div>
 
                     <div class="form-field">
@@ -167,24 +169,11 @@
                 </div>
             </section>
 
-            <hr class="section-divider">
-
-            <!-- ================= VALIDITY ================= -->
-            <section class="form-section">
-                <h2 class="section-title">
-                    <i class="ph ph-calendar-check"></i> Validity Interval
-                </h2>
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label class="field-label">VALID FROM</label>
-                        <input type="date" name="validity_from" value="{{ date('Y-m-d') }}" required>
-                    </div>
-                    <div class="form-field">
-                        <label class="field-label">VALID UNTIL</label>
-                        <input type="date" name="validity_to" value="{{ date('Y-m-d', strtotime('+1 year')) }}" required>
-                    </div>
-                </div>
-            </section>
+            <!-- ================= VALIDITY (Automatically set to 1 year) ================= -->
+            <div style="display: none;">
+                <input type="date" name="validity_from" value="{{ date('Y-m-d') }}">
+                <input type="date" name="validity_to" value="{{ date('Y-m-d', strtotime('+1 year')) }}">
+            </div>
 
             <hr class="section-divider">
 
@@ -437,14 +426,32 @@
                 regContainer.style.display = 'block';
                 regContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+                // Toggle standard field requirements
+                const contactInput = document.getElementById('contact-input');
+                const contactLabel = document.getElementById('contact-label');
+                const emailInput = document.getElementById('email-input');
+                const emailLabel = document.getElementById('email-label');
+
+                if (role === 'faculty') {
+                    contactInput.required = false;
+                    if(contactLabel) contactLabel.innerHTML = 'CONTACT NUMBER <span style="color:gray">(Optional)</span>';
+                    emailInput.required = false;
+                    if(emailLabel) emailLabel.innerHTML = 'EMAIL ADDRESS <span style="color:gray">(Optional)</span>';
+                } else {
+                    contactInput.required = true;
+                    if(contactLabel) contactLabel.innerHTML = 'CONTACT NUMBER <span style="color:red">*</span>';
+                    emailInput.required = true;
+                    if(emailLabel) emailLabel.innerHTML = 'EMAIL ADDRESS <span style="color:red">*</span>';
+                }
+
                 let html = '';
                 if (role === 'student' || role === 'faculty') {
-                    const idLabel = role === 'student' ? 'Student ID Number' : 'Faculty ID Number';
+                    const idLabel = role === 'student' ? 'Student ID Number' : 'Personnel ID Number';
                     html = `<div class="form-grid">
                         <div class="form-field">
                             <label class="field-label">${idLabel.toUpperCase()}</label>
                             <div style="display: flex; gap: 5px;">
-                                <input type="text" name="university_id" id="search-id-input" placeholder="Enter ID..." required style="flex-grow:1">
+                                <input type="text" name="university_id" id="search-id-input" placeholder="Search ID or Plate..." ${role === 'student' ? 'required' : ''} style="flex-grow:1">
                                 <button type="button" id="fetch-search-btn" class="btn" style="background: #1e293b; color: white; padding: 0 1rem; border-radius: 10px;" title="Fetch Records">
                                     <i class="ph ph-magnifying-glass"></i>
                                 </button>
@@ -460,15 +467,33 @@
                             </select>
                         </div>
                         <div class="form-field"><label class="field-label">Course</label><select name="course" id="course-selector" required><option value="" disabled selected>Select College First...</option></select></div>
-                        <div class="form-field"><label class="field-label">Year Level</label><select name="year_level" required><option value="" disabled selected>Select Year...</option><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option></select></div>`;
+                        <div class="form-field"><label class="field-label">Year Level</label><select name="year_level" required><option value="" disabled selected>Select Year...</option><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option><option>5th Year</option></select></div>`;
                         roleVLabel.innerText = "COR / ENROLLMENT VERIFIED";
                         roleVIcon.className = "ph ph-certificate";
                     } else {
+                        const keyOffices = [
+                            "Office of the Campus Director",
+                            "Registrar Office",
+                            "Administrative and Finance Services",
+                            "Human Resource Management Office (HRMO)",
+                            "Guidance Office",
+                            "Student Affairs and Services Offices (SASO)",
+                            "Alumni Relations and Affairs Office",
+                            "Maintenance and Engineering Office",
+                            "Library",
+                            "Campus Clinic",
+                            "Supply Office"
+                        ];
                         html += `<div class="form-field md-col-2">
-                             <label class="field-label">Academic Department</label>
+                             <label class="field-label">ACADEMIC DEPARTMENT / KEY OFFICE</label>
                              <select name="college_dept" required>
-                                 <option value="" disabled selected>Select Department...</option>
-                                 ${collegesData.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                                 <option value="" disabled selected>Select Department/Office...</option>
+                                 <optgroup label="Academic Departments">
+                                    ${collegesData.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                                 </optgroup>
+                                 <optgroup label="Key Administrative Offices">
+                                    ${keyOffices.map(o => `<option value="${o}">${o}</option>`).join('')}
+                                 </optgroup>
                              </select>
                         </div>`;
                         roleVLabel.innerText = "EMPLOYEE ID VERIFIED";
@@ -532,6 +557,13 @@
             const catId = this.selectedOptions[0].dataset.id;
             brandSel.innerHTML = '<option value="" disabled selected>Loading...</option>';
             brandSel.disabled = true;
+
+            // Reset "Other" states
+            document.getElementById('brand-other-input').style.display = 'none';
+            document.getElementById('brand-other-input').value = '';
+            document.getElementById('brand-other-input').required = false;
+            brandSel.name = 'make_brand';
+
             document.getElementById('office-brand-loader').style.display = 'block';
             try {
                 const res = await fetch(`/api/brands/${catId}`);
@@ -545,17 +577,63 @@
 
         brandSel.onchange = async function() {
             const brandId = this.selectedOptions[0].dataset.id;
+            const isOther = this.value === "Other";
+
+            const brandOtherInput = document.getElementById('brand-other-input');
+            if (isOther) {
+                brandOtherInput.style.display = 'block';
+                brandOtherInput.required = true;
+                brandOtherInput.name = 'make_brand';
+                brandSel.name = 'make_brand_select';
+            } else {
+                brandOtherInput.style.display = 'none';
+                brandOtherInput.required = false;
+                brandOtherInput.name = '';
+                brandSel.name = 'make_brand';
+            }
+
             modelSel.innerHTML = '<option value="" disabled selected>Loading...</option>';
             modelSel.disabled = true;
+
+            // Reset "Other" Model state
+            document.getElementById('model-other-input').style.display = 'none';
+            document.getElementById('model-other-input').value = '';
+            document.getElementById('model-other-input').required = false;
+            modelSel.name = 'model_name';
+
             document.getElementById('office-model-loader').style.display = 'block';
-            if(!brandId) { modelSel.innerHTML = '<option value="Other">Other</option>'; modelSel.disabled = false; document.getElementById('office-model-loader').style.display = 'none'; return; }
+            if(!brandId) { 
+                modelSel.innerHTML = '<option value="Other">Other</option>'; 
+                modelSel.disabled = false; 
+                document.getElementById('office-model-loader').style.display = 'none'; 
+                // Auto trigger if Brand is Other
+                if(isOther) modelSel.onchange();
+                return; 
+            }
             try {
                 const res = await fetch(`/api/models/${brandId}`);
                 const models = await res.json();
                 modelSel.innerHTML = '<option value="" disabled selected>Select Model...</option>';
                 models.forEach(m => { modelSel.innerHTML += `<option value="${m.name}">${m.name}</option>`; });
+                modelSel.innerHTML += `<option value="Other">Other</option>`;
                 modelSel.disabled = false;
             } finally { document.getElementById('office-model-loader').style.display = 'none'; }
+        };
+
+        modelSel.onchange = function() {
+            const isOther = this.value === "Other";
+            const modelOtherInput = document.getElementById('model-other-input');
+            if (isOther) {
+                modelOtherInput.style.display = 'block';
+                modelOtherInput.required = true;
+                modelOtherInput.name = 'model_name';
+                modelSel.name = 'model_name_select';
+            } else {
+                modelOtherInput.style.display = 'none';
+                modelOtherInput.required = false;
+                modelOtherInput.name = '';
+                modelSel.name = 'model_name';
+            }
         };
 
         // RFID Scanner Logic (Multi-scan implementation)

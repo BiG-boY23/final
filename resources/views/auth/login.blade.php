@@ -158,12 +158,7 @@
             <button type="submit" class="btn-submit">Sign In</button>
         </form>
 
-        <div style="margin-top: 1.5rem; font-size: 0.8rem; color: #64748b; text-align: center;">
-            <p>Demo Credentials:</p>
-            <p>admin / password</p>
-            <p>office / password</p>
-            <p>guard / password</p>
-        </div>
+
     </div>
 
     <div class="login-footer">

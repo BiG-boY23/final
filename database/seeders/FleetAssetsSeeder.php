@@ -20,6 +20,7 @@ class FleetAssetsSeeder extends Seeder
             'SUV / Van' => ['icon' => 'jeep'],
             'Pickup' => ['icon' => 'truck'],
             'Truck' => ['icon' => 'car-profile'],
+            'Sidecar Motorcycles' => ['icon' => 'motorcycle'],
         ];
 
         $categoryModels = [];
@@ -35,7 +36,7 @@ class FleetAssetsSeeder extends Seeder
                 'models' => ['Vios', 'Hilux', 'Fortuner', 'Wigo', 'Innova', 'Camry', 'Raize']
             ],
             'Honda' => [
-                'categories' => ['Car / Sedan', 'SUV / Van', 'Motorcycle'],
+                'categories' => ['Car / Sedan', 'SUV / Van', 'Motorcycle', 'Sidecar Motorcycles'],
                 'models' => ['Civic', 'CR-V', 'City', 'BR-V', 'ADV 160', 'Click 125i', 'PCX 160']
             ],
             'Mitsubishi' => [
@@ -47,11 +48,11 @@ class FleetAssetsSeeder extends Seeder
                 'models' => ['Navara', 'Terra', 'Almera', 'Urvan']
             ],
             'Suzuki' => [
-                'categories' => ['Car / Sedan', 'SUV / Van', 'Motorcycle'],
+                'categories' => ['Car / Sedan', 'SUV / Van', 'Motorcycle', 'Sidecar Motorcycles'],
                 'models' => ['Ertiga', 'Jimny', 'Swift', 'S-Presso', 'Burgman Street', 'Raider R150']
             ],
             'Yamaha' => [
-                'categories' => ['Motorcycle'],
+                'categories' => ['Motorcycle', 'Sidecar Motorcycles'],
                 'models' => ['NMAX', 'Aerox', 'Mio i 125', 'YZF-R15', 'Sniper 155']
             ],
             'Isuzu' => [
@@ -89,23 +90,66 @@ class FleetAssetsSeeder extends Seeder
             }
         }
 
-        // 3. Academic Data (Unchanged)
-        $colleges = [
-            'College of Computing' => ['BS Information Technology', 'BS Computer Science', 'BS Information Systems'],
-            'College of Engineering' => ['BS Civil Engineering', 'BS Mechanical Engineering', 'BS Electrical Engineering'],
-            'College of Education' => ['Bachelor of Elementary Education', 'Bachelor of Secondary Education'],
-            'College of Business & Management' => ['BS Business Administration', 'BS Hospitality Management'],
-            'College of Arts & Sciences' => ['AB Communications', 'BS Psychology', 'BS Biology'],
+        // 3. Academic Data (Updated)
+        $departments = [
+            'Department of Computer Studies' => [
+                'Bachelor of Science in Information Technology (BSIT)'
+            ],
+            'Department of Teacher Education' => [
+                'Bachelor of Elementary Education (BEED)',
+                'Bachelor of Secondary Education (BSEd) major in Mathematics',
+                'Bachelor of Secondary Education (BSEd) major in Science',
+                'Bachelor of Physical Education (BPEd)',
+                'Bachelor of Technical-Vocational Teacher Education (BTVTEd)',
+                'Diploma in Teaching Secondary (DTS)'
+            ],
+            'Department of Business Management' => [
+                'Bachelor of Science in Hospitality Management (BSHM)'
+            ],
+            'Department of Engineering' => [
+                'Bachelor of Science in Civil Engineering (BSCE)',
+                'Bachelor of Science in Electrical Engineering (BSEE)',
+                'Bachelor of Science in Mechanical Engineering (BSME)'
+            ],
+            'Department of Industrial Technology' => [
+                'Bachelor of Industrial Technology (BIT) major in Culinary Arts (CA)',
+                'Bachelor of Industrial Technology (BIT) major in Electronics (ET)'
+            ],
         ];
 
-        foreach ($colleges as $collegeName => $courses) {
-            $college = College::updateOrCreate(['name' => $collegeName]);
+        foreach ($departments as $deptName => $courses) {
+            $college = College::updateOrCreate(
+                ['name' => $deptName],
+                ['category' => 'academic']
+            );
             foreach ($courses as $courseName) {
                 Course::updateOrCreate([
                     'college_id' => $college->id,
                     'name' => $courseName
                 ]);
             }
+        }
+
+        // 4. Administrative Offices
+        $offices = [
+            'Office of the Campus Director',
+            'Registrar Office',
+            'Administrative and Finance Services',
+            'Human Resource Management Office (HRMO)',
+            'Guidance Office',
+            'Student Affairs and Services Offices (SASO)',
+            'Alumni Relations and Affairs Office',
+            'Maintenance and Engineering Office',
+            'Library',
+            'Campus Clinic',
+            'Supply Office',
+        ];
+
+        foreach ($offices as $officeName) {
+            College::updateOrCreate(
+                ['name' => $officeName],
+                ['category' => 'administrative', 'code' => 'OFFICE']
+            );
         }
     }
 }

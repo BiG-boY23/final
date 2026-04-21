@@ -23,11 +23,11 @@
                     </label>
                     <label class="role-option">
                         <input type="radio" name="role" value="faculty">
-                        <span>Faculty</span>
+                        <span>Personnel</span>
                     </label>
                     <label class="role-option">
                         <input type="radio" name="role" value="staff">
-                        <span>Non-Teaching</span>
+                        <span>Vendor</span>
                     </label>
                 </div>
             </div>
@@ -58,12 +58,12 @@
                         <input type="text" name="middle_name" placeholder="Middle Name">
                     </div>
                     <div class="form-field">
-                        <label class="field-label">Contact Number</label>
-                        <input type="text" name="contact_number" placeholder="09XXXXXXXXX" required>
+                        <label id="contact-label" class="field-label">Contact Number <span style="color:red">*</span></label>
+                        <input type="text" name="contact_number" id="contact-input" placeholder="09XXXXXXXXX" required>
                     </div>
                     <div class="form-field md-col-2">
-                        <label class="field-label">Email Address</label>
-                        <input type="email" name="email_address" placeholder="email@example.com" required>
+                        <label id="email-label" class="field-label">Email Address <span style="color:red">*</span></label>
+                        <input type="email" name="email_address" id="email-input" placeholder="email@example.com" required>
                     </div>
                 </div>
 
@@ -75,52 +75,91 @@
 
             <hr class="section-divider">
 
-            <!-- ================= VEHICLE INFORMATION ================= -->
+            <!-- ================= VEHICLE MANAGEMENT ================= -->
             <section class="form-section">
-                <h2 class="section-title">
-                    <i class="ph ph-car"></i> Vehicle Identity
-                </h2>
-
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label class="field-label">Vehicle Category <span style="color:red">*</span></label>
-                        <select name="vehicle_type" id="office-category-selector" required>
-                            <option value="" disabled selected>Select Category...</option>
-                            @foreach($categories as $cat)
-                                <option value="{{ $cat->name }}" data-id="{{ $cat->id }}">{{ $cat->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="form-field">
-                        <label class="field-label">Brand <span style="color:red">*</span></label>
-                        <div style="position: relative;">
-                            <select name="make_brand" id="office-brand-selector" required disabled>
-                                <option value="" disabled selected>Select Category First...</option>
-                            </select>
-                            <div id="office-brand-loader" style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);">
-                                <i class="ph ph-circle-notch animate-spin text-primary"></i>
-                            </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 class="section-title" style="margin-bottom: 0;">
+                        <i class="ph ph-car"></i> Vehicle Identity
+                    </h2>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <div id="bridge-status-badge" style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: #f1f5f9; border-radius: 99px; font-size: 0.7rem; font-weight: 800; color: #64748b; border: 1px solid #e2e8f0;">
+                            <span style="width: 8px; height: 8px; background: #94a3b8; border-radius: 50%;"></span>
+                            BRIDGE OFFLINE
                         </div>
-                    </div>
-
-                    <div class="form-field">
-                        <label class="field-label">Specific Model <span style="color:red">*</span></label>
-                        <div style="position: relative;">
-                            <select name="model_name" id="office-model-selector" required disabled>
-                                <option value="" disabled selected>Select Brand First...</option>
-                            </select>
-                            <div id="office-model-loader" style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);">
-                                <i class="ph ph-circle-notch animate-spin text-primary"></i>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-field">
-                        <label class="field-label">Plate Number <span style="color:red">*</span></label>
-                        <input type="text" name="plate_number" placeholder="ABC 1234" required style="text-transform: uppercase;">
+                        <button type="button" id="kill-bridge-btn" title="Stop Local Bridge Service" class="btn btn-outline" style="padding: 4px; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: #ef4444; border-color: #fca5a5; display: none;">
+                            <i class="ph ph-power"></i>
+                        </button>
+                        <button type="button" id="add-vehicle-btn" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.75rem;">
+                            <i class="ph ph-plus-circle"></i> Add Another Vehicle
+                        </button>
                     </div>
                 </div>
+
+                <div id="vehicle-container" style="display: flex; flex-direction: column; gap: 16px; width: 100%;">
+                    <!-- Dynamic Vehicle Entries will be injected here -->
+                </div>
+
+                <!-- Vehicle Entry Template -->
+                <template id="vehicle-template">
+                    <div class="vehicle-set" style="display: block; width: 100%; padding: 20px; border: 2px solid #e2e8f0; border-radius: 12px; background: #ffffff; box-sizing: border-box; position: relative;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9;">
+                            <span class="vehicle-number-badge" style="background: #4f46e5; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; flex-shrink: 0;">1</span>
+                            <span class="vehicle-number-label" style="font-weight: 600; font-size: 0.95rem; color: #1e293b;">Vehicle #1</span>
+                            <button type="button" class="remove-vehicle" style="margin-left: auto; color: #ef4444; background: none; border: 1px solid #fca5a5; border-radius: 6px; cursor: pointer; padding: 4px 10px; font-size: 0.75rem;" title="Remove Vehicle">
+                                <i class="ph ph-trash"></i> Remove
+                            </button>
+                        </div>
+                        
+                        <input type="hidden" name="vehicles[{index}][id]" class="vehicle-id">
+                        
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px;">
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569;">Vehicle Category <span style="color:red">*</span></label>
+                                <select name="vehicles[{index}][vehicle_type]" class="category-selector" required style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; background: white;">
+                                    <option value="" disabled selected>Select Category...</option>
+                                    @foreach($categories as $cat)
+                                        <option value="{{ $cat->name }}" data-id="{{ $cat->id }}">{{ $cat->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569;">Brand <span style="color:red">*</span></label>
+                                <div style="position: relative;">
+                                    <select name="vehicles[{index}][make_brand]" class="brand-selector" required disabled style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; background: white;">
+                                        <option value="" disabled selected>Select Category First...</option>
+                                    </select>
+                                    <span class="brand-loader" style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; color: #6366f1;">...</span>
+                                </div>
+                                <input type="text" name="vehicles[{index}][make_brand_other]" class="brand-other-input" placeholder="Type Brand Name..." style="display: none; width: 100%; padding: 0.625rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; box-sizing: border-box;">
+                            </div>
+
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569;">Specific Model</label>
+                                <div style="position: relative;">
+                                    <select name="vehicles[{index}][model_name]" class="model-selector" disabled style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; background: white;">
+                                        <option value="" disabled selected>Select Brand First...</option>
+                                    </select>
+                                    <span class="model-loader" style="display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; color: #6366f1;">...</span>
+                                </div>
+                                <input type="text" name="vehicles[{index}][model_name_other]" class="model-other-input" placeholder="Type Model Name..." style="display: none; width: 100%; padding: 0.625rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; box-sizing: border-box;">
+                            </div>
+
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569;">Plate Number <span style="color:red">*</span></label>
+                                <input type="text" name="vehicles[{index}][plate_number]" class="plate-input" placeholder="ABC 1234" required style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; text-transform: uppercase; box-sizing: border-box;">
+                            </div>
+                        </div>
+
+                        <div style="border-top: 1px dashed #e2e8f0; padding-top: 14px;">
+                            <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569; display: block; margin-bottom: 8px;">RFID Tag Assignment</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" name="vehicles[{index}][rfid_tag]" class="rfid-input" placeholder="Scan or Enter Tag ID" style="flex-grow: 1; padding: 0.625rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-family: monospace; font-size: 0.875rem;">
+                                <button type="button" class="scan-vehicle-tag" style="padding: 0 1rem; border: 1px solid #6366f1; color: #6366f1; background: white; border-radius: 8px; cursor: pointer; font-size: 0.875rem; white-space: nowrap;"><i class="ph ph-scan"></i> Scan</button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
             </section>
 
             <hr class="section-divider">
@@ -164,66 +203,15 @@
                 </div>
             </section>
 
-            <hr class="section-divider">
-
-            <!-- ================= VALIDITY ================= -->
-            <section class="form-section">
-                <h2 class="section-title">
-                    <i class="ph ph-calendar-check"></i> Validity Interval
-                </h2>
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label class="field-label">Valid From</label>
-                        <input type="date" name="validity_from" value="{{ date('Y-m-d') }}" required>
-                    </div>
-                    <div class="form-field">
-                        <label class="field-label">Valid Until</label>
-                        <input type="date" name="validity_to" value="{{ date('Y-m-d', strtotime('+1 year')) }}" required>
-                    </div>
-                </div>
-            </section>
+            <!-- ================= VALIDITY (Automatically set to 1 year) ================= -->
+            <div style="display: none;">
+                <input type="date" name="validity_from" value="{{ date('Y-m-d') }}">
+                <input type="date" name="validity_to" value="{{ date('Y-m-d', strtotime('+1 year')) }}">
+            </div>
 
             <hr class="section-divider">
 
-            <!-- ================= RFID TAG ASSIGNMENT ================= -->
-            <section class="form-section">
-                <h2 class="section-title">
-                    <i class="ph ph-broadcast"></i> RFID Tag Assignment
-                </h2>
-                
-                <div class="tag-assignment-container" style="background: #f8fafc; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0;">
-                    <div style="margin-bottom: 1.5rem; display: flex; gap: 1rem;">
-                        <button type="button" id="modeAuto" class="btn btn-outline active" style="flex:1">Automatic Mode</button>
-                        <button type="button" id="modeManual" class="btn btn-outline" style="flex:1">Manual Mode</button>
-                    </div>
-
-                    <div id="autoModeContainer">
-                        <div class="form-field">
-                            <label class="field-label">RFID Tag ID (Scanned)</label>
-                            <div style="display: flex; gap: 10px;">
-                                <input type="text" name="rfid_tag_id" id="rfidTagId" placeholder="Waiting for tag scan..." readonly style="flex-grow:1; background:#f1f5f9;">
-                                <button type="button" id="scanBtn" class="btn btn-primary" style="padding: 0 1.5rem;">
-                                    <i class="ph ph-scan"></i> <span id="scanBtnText">Scan Tag</span>
-                                </button>
-                            </div>
-                            <p id="scannerStatus" style="font-size: 0.75rem; color: #64748b; margin-top: 8px;">Hardware scanner ready.</p>
-                        </div>
-                    </div>
-
-                    <div id="manualModeContainer" style="display:none">
-                        <div class="form-grid">
-                            <div class="form-field">
-                                <label class="field-label">Manual Tag ID</label>
-                                <input type="text" id="manualRfidTagId" placeholder="Enter ID">
-                            </div>
-                            <div class="form-field">
-                                <label class="field-label">Confirm Tag ID</label>
-                                <input type="text" id="confirmRfidTagId" placeholder="Repeat ID">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <!-- RFID section is now integrated into each vehicle entry -->
 
             <div class="form-actions mt-8">
                 <button type="submit" class="btn btn-primary w-full justify-center" style="height: 54px; font-size: 1.1rem; font-weight: 700;">
@@ -274,6 +262,7 @@
 @section('scripts')
 <script>
     const collegesData = @json($colleges);
+    const officesData = @json($offices);
 
     document.addEventListener('DOMContentLoaded', function() {
         const roleRadios = document.querySelectorAll('input[name="role"]');
@@ -321,7 +310,6 @@
                     'contact_number': data.contact_number,
                     'email_address': data.email_address,
                     'university_id': data.university_id,
-                    'plate_number': data.plate_number,
                     'validity_from': vFrom,
                     'validity_to': vTo,
                 };
@@ -339,7 +327,7 @@
                     setTimeout(() => {
                         const cSel = document.getElementById('course-selector');
                         if (cSel) cSel.value = data.course || '';
-                    }, 500); // Wait for courses to load based on college
+                    }, 500);
                     const ySel = mainForm.querySelector('select[name="year_level"]');
                     if (ySel) ySel.value = data.year_level || '';
                 } else if (data.role === 'faculty') {
@@ -352,57 +340,116 @@
                     if (loc) loc.value = data.vendor_address || '';
                 }
 
-                // Vehicle details population
-                if (data.vehicle_type) {
-                    const catSel = document.getElementById('office-category-selector');
-                    if (catSel) {
-                        catSel.value = data.vehicle_type;
-                        catSel.dispatchEvent(new Event('change'));
-                        
-                        setTimeout(() => {
-                            const brandSel = document.getElementById('office-brand-selector');
-                            if (brandSel) {
-                                brandSel.value = data.make_brand;
-                                brandSel.dispatchEvent(new Event('change'));
-                            }
-                            
-                            setTimeout(() => {
-                                const modelSel = document.getElementById('office-model-selector');
-                                if (modelSel) {
-                                    modelSel.value = data.model_name;
-                                }
-                            }, 500);
-                        }, 500);
+                // --- MULTI-VEHICLE POPULATION ---
+                // Normalize vehicle data from the Vehicle model
+                // Vehicle model has: id, plate_number, vehicle_details (combined), rfid_tag, vehicle_type
+                const normalizeVehicle = (v, regData) => {
+                    let make_brand = v.make_brand || null;
+                    let model_name = v.model_name || null;
+
+                    if (!make_brand && v.vehicle_details) {
+                        const parts = v.vehicle_details.trim().split(' ');
+                        make_brand = parts[0] || null;
+                        model_name = parts.slice(1).join(' ') || null;
                     }
-                }
 
-                // Populate RFID tag using manual mode layout
-                if (data.rfid_tag_id) {
-                    const manualModeBtn = document.getElementById('modeManual');
-                    if (manualModeBtn) manualModeBtn.click();
-                    
-                    setTimeout(() => {
-                        const mRfid = document.getElementById('manualRfidTagId');
-                        const cRfid = document.getElementById('confirmRfidTagId');
-                        if (mRfid && cRfid) {
-                            mRfid.value = data.rfid_tag_id;
-                            cRfid.value = data.rfid_tag_id;
-                            mRfid.dispatchEvent(new Event('input'));
+                    if (!make_brand) make_brand = regData.make_brand || null;
+                    if (!model_name) model_name = regData.model_name || null;
+
+                    return {
+                        id: v.id || '',
+                        vehicle_type: v.vehicle_type || regData.vehicle_type || '',
+                        make_brand: make_brand || '',
+                        model_name: model_name || '',
+                        plate_number: v.plate_number || regData.plate_number || '',
+                        rfid_tag: v.rfid_tag || regData.rfid_tag_id || ''
+                    };
+                };
+
+                const vehiclesToLoad = (data.vehicles && data.vehicles.length > 0)
+                    ? data.vehicles.map(v => normalizeVehicle(v, data))
+                    : [{ id: '', vehicle_type: data.vehicle_type||'', make_brand: data.make_brand||'', model_name: data.model_name||'', plate_number: data.plate_number||'', rfid_tag: data.rfid_tag_id||'' }];
+
+                console.log('[SmartGate] Vehicles to load:', vehiclesToLoad.length, vehiclesToLoad);
+
+                // Clear container and reset index FIRST before anything else
+                const vehicleContainerEl = document.getElementById('vehicle-container');
+                vehicleContainerEl.innerHTML = '';
+                vehicleIndex = 0;
+
+                // Populate each vehicle card sequentially (await keeps order correct)
+                const populateAllVehicles = async () => {
+                    for (let i = 0; i < vehiclesToLoad.length; i++) {
+                        const v = vehiclesToLoad[i];
+                        console.log(`[SmartGate] Rendering vehicle #${i + 1}:`, v);
+
+                        // 1. Append a new card to the DOM
+                        const entry = addVehicleEntry();
+                        console.log(`[SmartGate] Cards in DOM after append:`, vehicleContainerEl.querySelectorAll('.vehicle-set').length);
+
+                        // 2. Set hidden vehicle ID (for update operations)
+                        entry.querySelector('.vehicle-id').value = v.id || '';
+
+                        // 3. Set & fetch Category → Brand chain
+                        const catSel = entry.querySelector('.category-selector');
+                        if (v.vehicle_type) {
+                            catSel.value = v.vehicle_type;
+                            await handleCategoryChange.call(catSel);
                         }
-                    }, 100);
-                }
 
-                // Auto-check all document verification checkboxes 
-                // Since this user was already previously evaluated, skip re-evaluating papers on edit
-                if (data.id || data.rfid_tag_id) {
-                    const verifyChecks = mainForm.querySelectorAll('.v-card input[type="checkbox"]');
-                    verifyChecks.forEach(chk => {
-                        chk.checked = true;
+                        // 4. Set Brand (or "Other")
+                        const brandSel = entry.querySelector('.brand-selector');
+                        if (v.make_brand) {
+                            const bExists = Array.from(brandSel.options).some(o => o.value === v.make_brand);
+                            if (bExists) {
+                                brandSel.value = v.make_brand;
+                            } else {
+                                brandSel.value = 'Other';
+                                const otherInput = entry.querySelector('.brand-other-input');
+                                if (otherInput) { otherInput.value = v.make_brand; otherInput.style.display = 'block'; }
+                            }
+                            await handleBrandChange.call(brandSel);
+                        }
+
+                        // 5. Set Model (or "Other")
+                        const modelSel = entry.querySelector('.model-selector');
+                        if (v.model_name) {
+                            const mExists = Array.from(modelSel.options).some(o => o.value === v.model_name);
+                            if (mExists) {
+                                modelSel.value = v.model_name;
+                            } else {
+                                modelSel.value = 'Other';
+                                const mOther = entry.querySelector('.model-other-input');
+                                if (mOther) { mOther.value = v.model_name; mOther.style.display = 'block'; }
+                            }
+                        }
+
+                        // 6. Set Plate & RFID
+                        const plateInput = entry.querySelector('.plate-input');
+                        if (plateInput) plateInput.value = v.plate_number || '';
+                        const rfidEl = entry.querySelector('.rfid-input');
+                        if (rfidEl) rfidEl.value = v.rfid_tag || '';
+
+                        console.log(`[SmartGate] Vehicle #${i + 1} populated.`);
+                    }
+
+                    renumberVehicles();
+                    console.log(`[SmartGate] All ${vehiclesToLoad.length} vehicles rendered.`);
+                };
+
+                // Allow role-based fields to render before appending vehicle cards
+                setTimeout(() => {
+                    populateAllVehicles().then(() => {
+                        const finalContainer = document.getElementById('vehicle-container');
+                        console.log('[SmartGate] Total vehicle cards rendered:', finalContainer.querySelectorAll('.vehicle-set').length);
+                        if (data.id) {
+                            mainForm.querySelectorAll('.v-card input[type="checkbox"]').forEach(c => c.checked = true);
+                        }
+                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `${vehiclesToLoad.length} vehicle(s) loaded!`, showConfirmButton: false, timer: 2000 });
                     });
-                }
+                }, 150);
 
             }, 200);
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Data Found & Populated!', showConfirmButton: false, timer: 1500 });
         };
 
         const fetchExistingData = async (uid) => {
@@ -422,14 +469,32 @@
                 regContainer.style.display = 'block';
                 regContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
+                // Toggle standard field requirements
+                const contactInput = document.getElementById('contact-input');
+                const contactLabel = document.getElementById('contact-label');
+                const emailInput = document.getElementById('email-input');
+                const emailLabel = document.getElementById('email-label');
+
+                if (role === 'faculty') {
+                    contactInput.required = false;
+                    contactLabel.innerHTML = 'Contact Number <span style="color:gray">(Optional)</span>';
+                    emailInput.required = false;
+                    emailLabel.innerHTML = 'Email Address <span style="color:gray">(Optional)</span>';
+                } else {
+                    contactInput.required = true;
+                    contactLabel.innerHTML = 'Contact Number <span style="color:red">*</span>';
+                    emailInput.required = true;
+                    emailLabel.innerHTML = 'Email Address <span style="color:red">*</span>';
+                }
+
                 let html = '';
                 if (role === 'student' || role === 'faculty') {
-                    const idLabel = role === 'student' ? 'Student ID Number' : 'Faculty ID Number';
+                    const idLabel = role === 'student' ? 'Student ID Number' : 'Personnel ID Number';
                     html = `<div class="form-grid">
                         <div class="form-field">
                             <label class="field-label">${idLabel.toUpperCase()}</label>
                             <div style="display: flex; gap: 5px;">
-                                <input type="text" name="university_id" id="search-id-input" placeholder="Enter ID..." required style="flex-grow:1">
+                                <input type="text" name="university_id" id="search-id-input" placeholder="Search ID or Plate..." ${role === 'student' ? 'required' : ''} style="flex-grow:1">
                                 <button type="button" id="fetch-search-btn" class="btn btn-outline" style="padding: 0 0.75rem;"><i class="ph ph-magnifying-glass"></i></button>
                             </div>
                         </div>`;
@@ -443,15 +508,24 @@
                             </select>
                         </div>
                         <div class="form-field"><label class="field-label">Course</label><select name="course" id="course-selector" required><option value="" disabled selected>Select College First...</option></select></div>
-                        <div class="form-field"><label class="field-label">Year Level</label><select name="year_level" required><option value="" disabled selected>Select Year...</option><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option></select></div>`;
+                        <div class="form-field"><label class="field-label">Year Level</label><select name="year_level" required><option value="" disabled selected>Select Year...</option><option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option><option>5th Year</option></select></div>`;
                         roleVLabel.innerText = "COR / ENROLLMENT VERIFIED";
                         roleVIcon.className = "ph ph-certificate";
                     } else {
                         html += `<div class="form-field md-col-2">
-                             <label class="field-label">Academic Department</label>
+                             <label class="field-label">Academic Department / Key Office</label>
                              <select name="college_dept" required>
-                                 <option value="" disabled selected>Select Department...</option>
-                                 ${collegesData.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                                 <option value="" disabled selected>Select Department/Office...</option>
+                                 @if(count($colleges) > 0)
+                                 <optgroup label="Academic Departments">
+                                    ${collegesData.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                                 </optgroup>
+                                 @endif
+                                 @if(count($offices) > 0)
+                                 <optgroup label="Key Administrative Offices">
+                                    ${officesData.map(o => `<option value="${o.name}">${o.name}</option>`).join('')}
+                                 </optgroup>
+                                 @endif
                              </select>
                         </div>`;
                         roleVLabel.innerText = "EMPLOYEE ID VERIFIED";
@@ -505,16 +579,93 @@
             }
         });
 
-        // Vehicle Chained Dropdowns
-        const catSel = document.getElementById('office-category-selector');
-        const brandSel = document.getElementById('office-brand-selector');
-        const modelSel = document.getElementById('office-model-selector');
-        
-        catSel.onchange = async function() {
-            const catId = this.selectedOptions[0].dataset.id;
+        // Vehicle Multi-Set Logic
+        const vehicleContainer = document.getElementById('vehicle-container');
+        const vehicleTemplate = document.getElementById('vehicle-template');
+        const addVehicleBtn = document.getElementById('add-vehicle-btn');
+        let vehicleIndex = 0;
+
+        // Renumber all vehicle cards after add/remove
+        function renumberVehicles() {
+            vehicleContainer.querySelectorAll('.vehicle-set').forEach((set, i) => {
+                const badge = set.querySelector('.vehicle-number-badge');
+                const label = set.querySelector('.vehicle-number-label');
+                if (badge) badge.textContent = i + 1;
+                if (label) label.textContent = `Vehicle #${i + 1}`;
+            });
+        }
+
+        function addVehicleEntry() {
+            const index = vehicleIndex++;
+            const clone = vehicleTemplate.content.cloneNode(true);
+            const wrapper = clone.querySelector('.vehicle-set');
+            
+            // Replace {index} placeholders in names
+            wrapper.querySelectorAll('[name*="{index}"]').forEach(el => {
+                el.name = el.name.replace(/{index}/g, index);
+            });
+
+            // Update number badge to current count + 1
+            const currentCount = vehicleContainer.querySelectorAll('.vehicle-set').length;
+            const badge = wrapper.querySelector('.vehicle-number-badge');
+            const label = wrapper.querySelector('.vehicle-number-label');
+            if (badge) badge.textContent = currentCount + 1;
+            if (label) label.textContent = `Vehicle #${currentCount + 1}`;
+
+            // Bind Events
+            wrapper.querySelector('.category-selector').onchange = handleCategoryChange;
+            wrapper.querySelector('.brand-selector').onchange = handleBrandChange;
+            
+            const modelSel = wrapper.querySelector('.model-selector');
+            modelSel.onchange = function() {
+                const other = wrapper.querySelector('.model-other-input');
+                if (this.value === 'Other') {
+                    other.style.display = 'block';
+                    other.required = true;
+                    other.name = `vehicles[${index}][model_name]`;
+                    this.name = `vehicles[${index}][model_name_select]`;
+                } else {
+                    other.style.display = 'none';
+                    other.required = false;
+                    other.name = '';
+                    this.name = `vehicles[${index}][model_name]`;
+                }
+            };
+
+            wrapper.querySelector('.remove-vehicle').onclick = () => {
+                if(vehicleContainer.querySelectorAll('.vehicle-set').length > 1) {
+                    wrapper.remove();
+                    renumberVehicles();
+                } else {
+                    Swal.fire('Requirement', 'At least one vehicle is required.', 'info');
+                }
+            };
+
+            // RFID Scan Specific
+            wrapper.querySelector('.scan-vehicle-tag').onclick = function() {
+                const targetInput = wrapper.querySelector('.rfid-input');
+                startScanning(targetInput, this);
+            };
+
+            vehicleContainer.appendChild(clone);
+            return vehicleContainer.lastElementChild;
+        }
+
+        addVehicleBtn.onclick = () => addVehicleEntry();
+
+        // Chained Handlers Refactored for Multi-Row
+        async function handleCategoryChange() {
+            const wrapper = this.closest('.vehicle-set');
+            const brandSel = wrapper.querySelector('.brand-selector');
+            const loader = wrapper.querySelector('.brand-loader');
+            const catId = this.selectedOptions[0]?.dataset.id;
+
+            if(!catId) return;
+
             brandSel.innerHTML = '<option value="" disabled selected>Loading...</option>';
             brandSel.disabled = true;
-            document.getElementById('office-brand-loader').style.display = 'block';
+            loader.style.display = 'block';
+
             try {
                 const res = await fetch(`/api/brands/${catId}`);
                 const brands = await res.json();
@@ -522,82 +673,169 @@
                 brands.forEach(b => { brandSel.innerHTML += `<option value="${b.name}" data-id="${b.id}">${b.name}</option>`; });
                 brandSel.innerHTML += `<option value="Other">Other</option>`;
                 brandSel.disabled = false;
-            } finally { document.getElementById('office-brand-loader').style.display = 'none'; }
-        };
+            } catch(e) { console.error(e); }
+            finally { loader.style.display = 'none'; }
+        }
 
-        brandSel.onchange = async function() {
-            const brandId = this.selectedOptions[0].dataset.id;
+        async function handleBrandChange() {
+            const wrapper = this.closest('.vehicle-set');
+            const isOther = this.value === 'Other';
+            const brandId = this.selectedOptions[0]?.dataset.id;
+            const otherInput = wrapper.querySelector('.brand-other-input');
+            const modelSel = wrapper.querySelector('.model-selector');
+            const loader = wrapper.querySelector('.model-loader');
+            
+            // Extract index from name
+            const nameMatch = this.name.match(/vehicles\[(\d+)\]/);
+            const idx = nameMatch ? nameMatch[1] : 0;
+
+            if (isOther) {
+                otherInput.style.display = 'block';
+                otherInput.required = true;
+                otherInput.name = `vehicles[${idx}][make_brand]`;
+                this.name = `vehicles[${idx}][make_brand_select]`;
+            } else {
+                otherInput.style.display = 'none';
+                otherInput.required = false;
+                otherInput.name = '';
+                this.name = `vehicles[${idx}][make_brand]`;
+            }
+
             modelSel.innerHTML = '<option value="" disabled selected>Loading...</option>';
             modelSel.disabled = true;
-            document.getElementById('office-model-loader').style.display = 'block';
-            if(!brandId) { modelSel.innerHTML = '<option value="Other">Other</option>'; modelSel.disabled = false; document.getElementById('office-model-loader').style.display = 'none'; return; }
+            loader.style.display = 'block';
+
+            if (!brandId && !isOther) {
+                modelSel.innerHTML = '<option value="" disabled selected>Select Brand First...</option>';
+                loader.style.display = 'none';
+                return;
+            }
+
+            if(isOther) {
+                modelSel.innerHTML = '<option value="" disabled selected>Select Model...</option><option value="Other">Other</option>';
+                modelSel.disabled = false;
+                loader.style.display = 'none';
+                return;
+            }
+
             try {
                 const res = await fetch(`/api/models/${brandId}`);
                 const models = await res.json();
                 modelSel.innerHTML = '<option value="" disabled selected>Select Model...</option>';
                 models.forEach(m => { modelSel.innerHTML += `<option value="${m.name}">${m.name}</option>`; });
+                modelSel.innerHTML += `<option value="Other">Other</option>`;
                 modelSel.disabled = false;
-            } finally { document.getElementById('office-model-loader').style.display = 'none'; }
-        };
+            } catch(e) { console.error(e); }
+            finally { loader.style.display = 'none'; }
+        }
 
-        // RFID Scanner Logic
-        const modeAuto = document.getElementById('modeAuto');
-        const modeManual = document.getElementById('modeManual');
-        const scanBtn = document.getElementById('scanBtn');
-        const rfidInput = document.getElementById('rfidTagId');
-        let bridgeSocket = null;
+        // Shared Scan logic
+        let scanSocket = null;
+        let isPollingStatus = false;
 
-        modeAuto.onclick = () => { modeAuto.classList.add('active'); modeManual.classList.remove('active'); document.getElementById('autoModeContainer').style.display='block'; document.getElementById('manualModeContainer').style.display='none'; };
-        modeManual.onclick = () => { modeManual.classList.add('active'); modeAuto.classList.remove('active'); document.getElementById('manualModeContainer').style.display='block'; document.getElementById('autoModeContainer').style.display='none'; };
-
-        scanBtn.onclick = () => {
-            if(bridgeSocket) { bridgeSocket.close(); bridgeSocket = null; document.getElementById('scanBtnText').innerText = "Scan Tag"; return; }
-            bridgeSocket = new WebSocket('ws://localhost:8765');
-            document.getElementById('scanBtnText').innerText = "Listening...";
-            bridgeSocket.onmessage = (e) => {
-                const data = JSON.parse(e.data);
-                if(data.tag_id) {
-                    rfidInput.value = data.tag_id;
-                    Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Tag Captured!', showConfirmButton:false, timer:1500 });
-                    bridgeSocket.close();
-                }
-            };
-            bridgeSocket.onerror = () => { Swal.fire('Error', 'RFID Bridge not found.', 'error'); bridgeSocket = null; document.getElementById('scanBtnText').innerText = "Scan Tag"; };
-        };
-
-        // Manual Mode Sync logic
-        const manualInput = document.getElementById('manualRfidTagId');
-        const confirmInput = document.getElementById('confirmRfidTagId');
-        
-        const syncManual = () => {
-            if(modeManual.classList.contains('active')) {
-                if(manualInput.value === confirmInput.value && manualInput.value !== '') {
-                    rfidInput.value = manualInput.value;
+        async function updateBridgeBadge() {
+            try {
+                const res = await fetch('{{ route('bridge.status') }}');
+                const data = await res.json();
+                if (data.online) {
+                    setBadgeOnline();
                 } else {
-                    rfidInput.value = ''; // keep empty if mismatch
+                    // Only set offline if scan is not active
+                    if(!scanSocket) setBadgeOffline();
                 }
+            } catch (e) {}
+        }
+
+        function setBadgeOnline() {
+            const badge = document.getElementById('bridge-status-badge');
+            const killBtn = document.getElementById('kill-bridge-btn');
+            if(!badge) return;
+            badge.innerHTML = '<span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; box-shadow: 0 0 5px #10b981;"></span> BRIDGE ONLINE';
+            badge.style.background = '#f0fdf4';
+            badge.style.color = '#059669';
+            badge.style.borderColor = '#bbf7d0';
+            if(killBtn) killBtn.style.display = 'flex';
+        }
+
+        function setBadgeOffline() {
+            const badge = document.getElementById('bridge-status-badge');
+            const killBtn = document.getElementById('kill-bridge-btn');
+            if(!badge) return;
+            badge.innerHTML = '<span style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%;"></span> BRIDGE OFFLINE';
+            badge.style.background = '#fef2f2';
+            badge.style.color = '#dc2626';
+            badge.style.borderColor = '#fecaca';
+            if(killBtn) killBtn.style.display = 'none';
+        }
+
+        // Poll status every 5 seconds
+        setInterval(updateBridgeBadge, 5000);
+        updateBridgeBadge();
+
+        document.getElementById('kill-bridge-btn').onclick = async function() {
+            const res = await fetch('{{ route('bridge.stop') }}', { method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' } });
+            const data = await res.json();
+            if(data.success) {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Bridge Stopped', showConfirmButton: false, timer: 2000 });
+                updateBridgeBadge();
             }
         };
 
-        manualInput.addEventListener('input', syncManual);
-        confirmInput.addEventListener('input', syncManual);
+        async function startScanning(input, btn) {
+            if(scanSocket) { scanSocket.close(); scanSocket = null; btn.innerHTML = '<i class="ph ph-scan"></i> Scan'; return; }
+            
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Initializing...';
+            btn.disabled = true;
+
+            // Auto-check and START bridge if offline
+            try {
+                const statusRes = await fetch('{{ route('bridge.status') }}');
+                const statusData = await statusRes.json();
+                if (!statusData.online) {
+                    btn.innerHTML = '<i class="ph ph-rocket-launch animate-spin"></i> Starting Bridge...';
+                    await fetch('{{ route('bridge.start') }}');
+                    // Wait a bit for bridge to bind
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            } catch(e) { console.warn('Bridge auto-start check failed', e); }
+
+            scanSocket = new WebSocket('ws://localhost:8080');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph ph-broadcast animate-pulse"></i> Listening...';
+            
+            scanSocket.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                const tag = data.tagId || data.tag_id;
+                if(tag) {
+                    input.value = tag;
+                    input.dispatchEvent(new Event('input'));
+                    input.style.background = '#ecfdf5';
+                    Swal.fire({ toast:true, position:'top-end', icon:'success', title:'Tag Captured!', showConfirmButton:false, timer:1500 });
+                    scanSocket.close();
+                }
+            };
+
+            scanSocket.onopen = () => { setBadgeOnline(); };
+            scanSocket.onclose = () => { scanSocket = null; btn.innerHTML = originalHtml; updateBridgeBadge(); };
+            scanSocket.onerror = () => { 
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Bridge Connection Failed',
+                    text: 'The RFID Bridge service is not responding. Please ensure bridge_service.py is running or try again.',
+                    confirmButtonColor: '#741b1b'
+                });
+                scanSocket.close(); 
+            };
+        }
+
+        // Initial entry
+        addVehicleEntry();
 
         // Complete Submission
         mainForm.onsubmit = async (e) => {
-            if(modeManual.classList.contains('active')) {
-                if(manualInput.value !== confirmInput.value) {
-                    Swal.fire('RFID Mismatch', 'Manual Tag ID and Confirmation do not match.', 'warning');
-                    return false;
-                }
-                if(manualInput.value === '') {
-                    Swal.fire('Missing Tag', 'Please enter an RFID Tag ID.', 'warning');
-                    return false;
-                }
-                rfidInput.value = manualInput.value;
-            }
-            
             e.preventDefault();
-            Swal.fire({ title:'Saving Registration...', text:'Recording verification and assigning tag...', allowOutsideClick:false, didOpen:()=>Swal.showLoading() });
+            Swal.fire({ title:'Saving Registration...', text:'Recording verification and assigning tags...', allowOutsideClick:false, didOpen:()=>Swal.showLoading() });
             
             const formData = new FormData(mainForm);
             
@@ -610,7 +848,7 @@
 
             try {
                 const res = await fetch(actionUrl, { 
-                    method: 'POST', // Use POST here, Laravel handles _method for PUT
+                    method: 'POST', 
                     body: formData,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
@@ -626,7 +864,7 @@
                 }
             } catch(e) { 
                 console.error(e);
-                Swal.fire('Submission Failed', 'Could not reach the server or invalid response. Please check your data and try again.', 'error'); 
+                Swal.fire('Submission Failed', 'Could not reach the server or invalid response.', 'error'); 
             }
         };
     });

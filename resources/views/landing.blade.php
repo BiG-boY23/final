@@ -25,6 +25,10 @@
             --transition: all 0.3s ease;
         }
 
+        html {
+            scroll-behavior: smooth;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -89,6 +93,49 @@
             background: #f1f5f9;
         }
 
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            opacity: 0.8;
+            position: relative;
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary);
+            transition: var(--transition);
+        }
+
+        .nav-link:hover {
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        /* Responsive Nav */
+        @media (max-width: 640px) {
+            .nav-links .nav-link {
+                display: none; /* Hide detailed links on mobile for simplicity, or handle with a menu */
+            }
+        }
+
         /* Hero Section */
         .hero {
             padding: 4rem 0;
@@ -133,6 +180,7 @@
         /* General Section Styling */
         section {
             padding: 5rem 0;
+            scroll-margin-top: 80px;
         }
 
         .section-title {
@@ -309,16 +357,22 @@
                 SmartGate
             </a>
             <div class="nav-links">
+                <a href="#home" class="nav-link">Home</a>
+                <a href="#overview" class="nav-link">Overview</a>
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#how-it-works" class="nav-link">Process</a>
+                <a href="#policy" class="nav-link">Policy</a>
+                <a href="#instructions" class="nav-link">Instructions</a>
                 @auth
                     <a href="{{ url('/dashboard') }}" class="btn-nav-login">Dashboard</a>
                 @else
-                    <a href="{{ route('login') }}" class="btn-nav-login">Staff Login</a>
+                    <a href="{{ route('login') }}" class="btn-nav-login">Login Portal</a>
                 @endauth
             </div>
         </div>
     </nav>
 
-    <section class="hero">
+    <section id="home" class="hero">
         <div class="container">
             <div class="hero-grid">
                 <div class="hero-content">
@@ -439,6 +493,7 @@
                     <ul class="policy-list">
                         <li><i class="fas fa-info-circle"></i> <span>One RFID tag per vehicle; non-transferable.</span></li>
                         <li><i class="fas fa-lock"></i> <span>Tampering or unauthorized use is grounds for deactivation.</span></li>
+                        <li><i class="fas fa-exclamation-triangle"></i> <span>Lost, damaged (e.g., water damage), or defective tags must be replaced immediately. A replacement fee of 50 Pesos shall apply.</span></li>
                     </ul>
                 </div>
 

@@ -427,8 +427,8 @@
                             <select name="role" id="role-selector" required>
                                 <option value="" disabled selected>Select your institutional role...</option>
                                 <option value="student">Student Enrollee</option>
-                                <option value="faculty">Academic Personnel (Teaching)</option>
-                                <option value="staff">Non-Teaching Staff / Vendor</option>
+                                <option value="faculty">Personnel</option>
+                                <option value="staff">Vendor</option>
                             </select>
                         </div>
 
@@ -453,12 +453,12 @@
 
                         <div class="input-grid">
                             <div class="form-group">
-                                <label>Contact Number</label>
-                                <input type="text" name="contact_number" placeholder="09XXXXXXXXX" required data-summary="Phone">
+                                <label id="contact-label">Contact Number <span style="color:red">*</span></label>
+                                <input type="text" name="contact_number" id="contact-input" placeholder="09XXXXXXXXX" required data-summary="Phone">
                             </div>
                             <div class="form-group">
-                                <label>Email Address</label>
-                                <input type="email" name="email_address" placeholder="juan@evsu.edu.ph" data-summary="Email">
+                                <label id="email-label">Email Address</label>
+                                <input type="email" name="email_address" id="email-input" placeholder="juan@evsu.edu.ph" required data-summary="Email">
                             </div>
                         </div>
                     </div>
@@ -491,6 +491,7 @@
                                 </select>
                                 <div id="brand-loader" class="dd-loader" style="display:none"><div class="dd-spinner"></div></div>
                             </div>
+                            <input type="text" id="brand-other-input" placeholder="Type Brand Name..." style="display: none; width: 100%; padding: 0.9rem 1.2rem; background: white; border: 2px solid #f1f5f9; border-radius: 8px; margin-top: 10px;">
                             <div class="chain-hint"><i class="ph ph-arrow-down"></i> Model list updates automatically</div>
                         </div>
 
@@ -505,6 +506,7 @@
                                 </select>
                                 <div id="model-loader" class="dd-loader" style="display:none"><div class="dd-spinner"></div></div>
                             </div>
+                            <input type="text" id="model-other-input" placeholder="Type Model Name..." style="display: none; width: 100%; padding: 0.9rem 1.2rem; background: white; border: 2px solid #f1f5f9; border-radius: 8px; margin-top: 10px;">
                         </div>
 
                         <div class="form-group">
@@ -555,6 +557,7 @@
                             <div class="input-grid">
                                 <div class="summary-group"><div class="summary-label">Full Name</div><div class="summary-value" id="sum-name">---</div></div>
                                 <div class="summary-group"><div class="summary-label">Institutional Role</div><div class="summary-value" id="sum-role">---</div></div>
+                                <div class="summary-group"><div class="summary-label" id="sum-dept-label">Official Station</div><div class="summary-value" id="sum-dept">---</div></div>
                                 <div class="summary-group"><div class="summary-label">Contact Details</div><div class="summary-value" id="sum-contact">---</div></div>
                                 <div class="summary-group"><div class="summary-label">Vehicle Info</div><div class="summary-value" id="sum-vehicle">---</div></div>
                             </div>
@@ -702,7 +705,27 @@
 
                 document.getElementById('sum-name').innerText    = `${fName} ${lName}`;
                 document.getElementById('sum-role').innerText    = role;
-                document.getElementById('sum-contact').innerText = `${phone} | ${email || 'No email'}`;
+                
+                // Dept/Office logic
+                const roleKey = document.getElementById('role-selector').value;
+                let deptVal = '—';
+                let deptLabel = 'Department / Office';
+
+                if(roleKey === 'student') {
+                    deptVal = document.getElementsByName('college_dept')[0].value + ' (' + document.getElementsByName('course')[0].value + ')';
+                    deptLabel = 'College / Course';
+                } else if(roleKey === 'faculty') {
+                    deptVal = document.getElementsByName('college_dept_faculty')[0].value;
+                    deptLabel = 'Assigned Office / Dept';
+                } else if(roleKey === 'staff') {
+                    deptVal = document.getElementsByName('business_stall_name')[0].value;
+                    deptLabel = 'Business / Stall';
+                }
+
+                document.getElementById('sum-dept-label').innerText = deptLabel;
+                document.getElementById('sum-dept').innerText = deptVal;
+
+                document.getElementById('sum-contact').innerText = `${phone || 'No Contact'} | ${email || 'No Email'}`;
                 document.getElementById('sum-vehicle').innerText = `${catName} › ${brandName} ${modelName} (${plate.toUpperCase()})`;
 
                 // Files
@@ -739,6 +762,12 @@
                 resetSelect(modelSel, 'Select Brand First…');
                 brandSpinner.style.display = 'block';
 
+                // Reset "Other" states
+                document.getElementById('brand-other-input').style.display = 'none';
+                document.getElementById('brand-other-input').value = '';
+                document.getElementById('brand-other-input').required = false;
+                brandSel.name = 'make_brand';
+
                 try {
                     const res    = await fetch(`/api/brands/${categoryId}`);
                     const brands = await res.json();
@@ -764,13 +793,36 @@
 
             brandSel.addEventListener('change', async function () {
                 const brandId = this.selectedOptions[0].dataset.id;
+                const isOther = this.value === "Other";
+
+                const brandOtherInput = document.getElementById('brand-other-input');
+                if (isOther) {
+                    brandOtherInput.style.display = 'block';
+                    brandOtherInput.required = true;
+                    brandOtherInput.name = 'make_brand';
+                    brandSel.name = 'make_brand_select';
+                } else {
+                    brandOtherInput.style.display = 'none';
+                    brandOtherInput.required = false;
+                    brandOtherInput.name = '';
+                    brandSel.name = 'make_brand';
+                }
+
                 resetSelect(modelSel, 'Loading models…');
                 modelSpinner.style.display = 'block';
 
+                // Reset "Other" Model state
+                document.getElementById('model-other-input').style.display = 'none';
+                document.getElementById('model-other-input').value = '';
+                document.getElementById('model-other-input').required = false;
+                modelSel.name = 'model_name';
+
                 if (!brandId) {
-                    modelSel.innerHTML = `<option value="Other (Not Listed)" selected>Other / Not Listed</option>`;
+                    modelSel.innerHTML = `<option value="Other" selected>Other / Not Listed</option>`;
                     modelSel.disabled = false;
                     modelSpinner.style.display = 'none';
+                    // Trigger "Other" Model logic
+                    modelSel.dispatchEvent(new Event('change'));
                     return;
                 }
 
@@ -782,15 +834,31 @@
                     models.forEach(m => {
                         modelSel.innerHTML += `<option value="${m.name}">${m.name}</option>`;
                     });
-                    modelSel.innerHTML += `<option value="Other (Not Listed)">Other / Brand Not Listed</option>`;
+                    modelSel.innerHTML += `<option value="Other">Other / Brand Not Listed</option>`;
                     modelSel.disabled = false;
                 } catch(e) {
                     resetSelect(modelSel, 'Selection Error');
-                    modelSel.innerHTML += `<option value="Other (Not Listed)">Other / Manual Entry</option>`;
+                    modelSel.innerHTML += `<option value="Other">Other / Manual Entry</option>`;
                     modelSel.disabled = false;
                     console.error(e);
                 } finally {
                     modelSpinner.style.display = 'none';
+                }
+            });
+
+            modelSel.addEventListener('change', function() {
+                const isOther = this.value === "Other";
+                const modelOtherInput = document.getElementById('model-other-input');
+                if (isOther) {
+                    modelOtherInput.style.display = 'block';
+                    modelOtherInput.required = true;
+                    modelOtherInput.name = 'model_name';
+                    modelSel.name = 'model_name_select';
+                } else {
+                    modelOtherInput.style.display = 'none';
+                    modelOtherInput.required = false;
+                    modelOtherInput.name = '';
+                    modelSel.name = 'model_name';
                 }
             });
 
@@ -859,16 +927,23 @@
                             </div>
                         </div>`;
                 } else if (role === 'faculty') {
-                   html = `
+                    html = `
                         <div class="input-grid">
-                             <div class="form-group"><label>Faculty ID Number</label><input type="text" name="faculty_id" placeholder="F-XXXXX" required></div>
+                             <div class="form-group"><label id="faculty-id-label">Personnel ID Number (Optional)</label><input type="text" name="faculty_id" placeholder="F-XXXXX"></div>
                              <div class="form-group">
-                                <label>Academic Department</label>
+                                <label>Department / Official Station</label>
                                 <select name="college_dept_faculty" required>
-                                    <option value="" disabled selected>Select Department...</option>
-                                    @foreach($colleges as $c)
-                                        <option value="{{ $c->name }}">{{ $c->name }}</option>
-                                    @endforeach
+                                    <option value="" disabled selected>Select Department/Office...</option>
+                                    <optgroup label="Academic Departments">
+                                        @foreach($colleges as $c)
+                                            <option value="{{ $c->name }}">{{ $c->name }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                    <optgroup label="Key Administrative Offices">
+                                        @foreach($offices as $o)
+                                            <option value="{{ $o->name }}">{{ $o->name }}</option>
+                                        @endforeach
+                                    </optgroup>
                                 </select>
                              </div>
                         </div>
@@ -876,7 +951,7 @@
                         <input type="hidden" name="access_classification_faculty" value="faculty">`;
                    uploads = `
                         <div class="form-group full-width">
-                            <label>Faculty Identity Card</label>
+                            <label>Personnel Identity Card</label>
                             <div class="upload-card" data-field="employee_id_file">
                                 <i class="ph ph-briefcase"></i><p>Select ID Image</p>
                                 <input type="file" name="employee_id_file" accept="image/*" required class="doc-upload">
@@ -899,6 +974,32 @@
                                 <div class="loader-overlay"><div class="spinner"></div></div>
                             </div>
                         </div>`;
+                }
+                
+                // Email Guidance Update
+                const emailLabel = document.getElementById('email-label');
+                const emailInput = document.getElementById('email-input');
+                const contactLabel = document.getElementById('contact-label');
+                const contactInput = document.getElementById('contact-input');
+
+                if (role === 'student') {
+                    emailLabel.innerHTML = 'Institutional Email (@evsu.edu.ph) <span style="color:red">*</span>';
+                    emailInput.placeholder = 'juan@evsu.edu.ph';
+                    emailInput.required = true;
+                    contactLabel.innerHTML = 'Contact Number <span style="color:red">*</span>';
+                    contactInput.required = true;
+                } else if (role === 'faculty') {
+                    emailLabel.innerHTML = 'Personal / Work Email (Optional)';
+                    emailInput.placeholder = 'personal@email.com';
+                    emailInput.required = false;
+                    contactLabel.innerHTML = 'Contact Number (Optional)';
+                    contactInput.required = false;
+                } else {
+                    emailLabel.innerHTML = 'Personal / Work Email <span style="color:red">*</span>';
+                    emailInput.placeholder = 'personal@email.com';
+                    emailInput.required = true;
+                    contactLabel.innerHTML = 'Contact Number <span style="color:red">*</span>';
+                    contactInput.required = true;
                 }
 
                 dynamicFields.innerHTML = html;

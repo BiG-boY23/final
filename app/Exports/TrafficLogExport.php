@@ -34,9 +34,12 @@ class TrafficLogExport implements FromCollection, WithHeadings, WithMapping, Wit
             $search = $this->filters['search'];
             $query->where(function($q) use ($search) {
                 $q->whereHas('vehicleRegistration', function($qr) use ($search) {
-                    $qr->where('full_name', 'like', "%$search%");
+                    $qr->where('full_name', 'like', "%$search%")
+                      ->orWhere('university_id', 'like', "%$search%")
+                      ->orWhere('plate_number', 'like', "%$search%");
                 })->orWhereHas('vehicle', function($qv) use ($search) {
-                    $qv->where('plate_number', 'like', "%$search%");
+                    $qv->where('plate_number', 'like', "%$search%")
+                      ->orWhere('rfid_tag', 'like', "%$search%");
                 });
             });
         }

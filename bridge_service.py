@@ -9,11 +9,15 @@ import sys
 import requests
 import os
 from datetime import datetime
+import logging
+
+# Silence noise from invalid handshake attempts (health checks/probes)
+logging.getLogger('websockets').setLevel(logging.ERROR)
 
 # ──────────────────────────────────────────────
 # CONFIGURATION
 # ──────────────────────────────────────────────
-SERIAL_PORT      = os.getenv('SERIAL_PORT', '/dev/ttyUSB0' if os.name != 'nt' else 'COM5')
+SERIAL_PORT      = os.getenv('SERIAL_PORT', '/dev/ttyUSB0' if os.name != 'nt' else 'COM3')
 BAUD_RATE        = int(os.getenv('BAUD_RATE', 9600))
 WS_HOST          = '0.0.0.0'
 WS_PORT          = int(os.getenv('WS_PORT', 8080))
@@ -81,15 +85,15 @@ def sync_buffer():
 # HEARTBEAT
 # ──────────────────────────────────────────────
 def heartbeat_worker():
-    """Background thread to send diagnostics to Laravel every 30s."""
+    """Background thread to send diagnostics to Laravel."""
     while True:
         try:
+            # Send immediate diagnostic data on every loop check
             requests.post(f"{LARAVEL_BASE_URL}{HEARTBEAT_PATH}", json={"port": SERIAL_PORT}, timeout=5)
-            # Also try to sync buffer if we have one
             sync_buffer()
         except:
             pass # Laravel might be down
-        time.sleep(30)
+        time.sleep(10) # 10s heartbeat for smoother live status
 
 # ──────────────────────────────────────────────
 # PORT CLEANUP
