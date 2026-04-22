@@ -18,8 +18,16 @@ until php artisan db:monitor --max=100 > /dev/null 2>&1 || [ $NEXT_WAIT_TIME -eq
 done
 
 echo "[DB] Running migrations..."
+# Create sqlite file if it doesn't exist to ensure correct starting permissions
+touch database/database.sqlite
+# Fix ownership and permissions for database and storage
+chown -R www-data:www-data database storage bootstrap/cache
+chmod -R 775 database storage bootstrap/cache
+
 php artisan optimize:clear
 php artisan migrate --force
+# Re-fix ownership after migration just in case new files/wal were created
+chown -R www-data:www-data database storage bootstrap/cache
 php artisan storage:link --force
 
 echo "[LARAVEL] Optimizing caches..."
